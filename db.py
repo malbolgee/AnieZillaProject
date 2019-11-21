@@ -8,27 +8,12 @@ class Database(object):
         self.conn = pymysql.connect('sql10.freesqldatabase.com', 'sql10312094', 'QSxqniDfqx', 'sql10312094', charset = 'utf8mb4')
         self.cur = self.conn.cursor()
 
-    def fetch(self, table):
-        self.cur.execute('SELECT * FROM {}'.format(table))
-        rows = self.cur.fetchone()
+    def getAnimeList(self, id):
 
-        desctiption = self.cur.description
-
-        return rows
-
-    def getAnimeList(self, id, name):
-
-        self.cur.execute("SELECT id, nome, diretorio FROM obras INNER JOIN animes ON id = idObra WHERE upado = 0 AND idUsuario = {} AND nome LIKE '%{}%'".format(id, name))
+        self.cur.execute("SELECT id, nome, diretorio FROM obras INNER JOIN animes ON id = idObra WHERE upado = 0 AND idUsuario = {}".format(id))
         rows = self.cur.fetchall()
 
         return rows
-
-    def formartString(self, string):
-
-        for i in range(len(string) - 1):
-            string[i] = string[i] + ', '
-
-        return string
 
     def getUser(self):
 
