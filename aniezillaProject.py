@@ -7,16 +7,19 @@ from time import sleep
 from threading import Thread
 from tkinter import messagebox, filedialog, ttk
 
-""" def resource_path(relative_path):
-    if hasattr(sys, '_MEIPASS'):
-        return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.abspath("."), relative_path) """
-
 db = Database()
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 class App(Tk):
 
-    isRunning = True
+    flag = False
 
     def __init__(self, *args, **kwargs):
         Tk.__init__(self, *args, **kwargs)
@@ -26,9 +29,14 @@ class App(Tk):
         container.grid_rowconfigure(0, weight = 1)
         container.grid_columnconfigure(0, weight = 1)
 
+        self.footFrame = Frame(self, width = 40, height = 30, bd = 1, relief = GROOVE)
+        self.footFrame.pack(side = 'bottom', fill = 'both')
+
+        Label(self.footFrame, text = 'AnieZilla Alpha v0.01', font = ('Calibri', 8, 'italic')).pack(side = LEFT)
+
         self.frames = {}
 
-        for F in [loginPage, searchPage, directoryPage]:
+        for F in [loginPage, searchPage, directoryPage, uploadPage]:
             
             frame = F(container, self)
             self.frames[F] = frame
@@ -42,13 +50,20 @@ class App(Tk):
         if frame.name == 'AnieZilla - Search':
             self.frames[context].fillAnimeList()
 
+        if frame.name == 'AnieZilla - Upload' and App.flag == False:
+            self.frames[context].fillListBoxupload()
+            App.flag = True
+
         self.title(frame.name)
         frame.tkraise()
 
+        if frame.name != 'AnieZilla - Login':
+            menubar = frame.menubar(self)
+            self.configure(menu = menubar)
+
     def isQuit(self):
 
-        if messagebox.askokcancel('Sair', 'Quer realmente sair?'):
-            App.isRunning = False
+        if messagebox.askokcancel('Sair', 'Quer realmente sair?') == True:
             self.quit()
 
 class loginPage(Frame):
@@ -62,28 +77,32 @@ class loginPage(Frame):
 
         Frame.__init__(self, parent)
         self.controller = controller
-        self.name = name
 
+        self.name = name
         self.login = None
         self.label = None
 
         loginPage.userVerify = StringVar()
         loginPage.passwordVerify = StringVar()
 
-        """ img = PhotoImage(file = resource_path('logo4.png'))
+        img = PhotoImage(file = resource_path('logo4.png'))
 
         label = Label(self, image = img)
         label.image = img
-        label.pack() """
+        label.pack(pady = 5)
 
         Label(self, text = 'User', font = ('Calibri', 11, 'bold')).pack(pady = 2)
-        Entry(self, textvariable = loginPage.userVerify).pack(pady = 2, padx = 10)
+        self.userEntry = ttk.Entry(self, textvariable = loginPage.userVerify, width = 25)
+        self.userEntry.pack(pady = 2, padx = 10)
+        self.userEntry.focus()
 
-        Label(self, text = 'Password', font = ('Calibri', 11, 'bold')).pack(pady = 2)
-        Entry(self, textvariable = loginPage.passwordVerify, show = '*').pack(pady = 2)
+        Label(self, text = 'Password', font = ('Calibri', 11, 'bold',)).pack(pady = 2)
+        self.passwordEntry = ttk.Entry(self, textvariable = loginPage.passwordVerify, show = '*', width = 25)
+        self.passwordEntry.pack(pady = 2)
 
-        loginButton = Button(self, text = 'Login', font = ('Calibri', 12), command = self.verifyLogin)
-        loginButton.pack(pady = 2)
+        loginButton = ttk.Button(self, text = 'Login', width = 10, command = self.verifyLogin)
+        loginButton.pack(pady = 5)
+
 
     def verifyLogin(self):
 
@@ -102,11 +121,12 @@ class loginPage(Frame):
             self.controller.show_frame(searchPage)
 
     def isUser(self, user):
-        
-        for i in range(len(user)):
-            if loginPage.userVerify.get() == user[i][1]:
-                self.login = user[i]
-                loginPage.userId = user[i][0]
+   
+        for i in user:
+            if loginPage.userVerify.get() == i[1]:
+                self.login = i
+                print(i)
+                loginPage.userId = i[0]
                 return True
 
         return False        
@@ -128,27 +148,27 @@ class loginPage(Frame):
 
 class searchPage(Frame):
 
-    selectedItem = ''
     animeId = {}
+    selectedItem = ''
 
     def __init__(self, parent, controller, name = 'AnieZilla - Search'):
         Frame.__init__(self, parent)
 
-        self.controller = controller
-        searchPage.run(self.verifyEntry)
-
         self.name = name
+        self.controller = controller
 
-        self.label = Label(self, text = 'Sua lista de animes', font = ('Arial', 12, 'bold'))
+        self.parent = parent
+
+        self.label = ttk.Label(self, text = 'Sua lista de animes', font = ('Arial', 12, 'bold'))
         self.label.pack(pady = 2)
 
         self.masterFrame = Frame(self, bd = 1, relief = GROOVE)
         self.masterFrame.pack(pady = 2) 
         
-        self.scrollBar = Scrollbar(self.masterFrame)
+        self.scrollBar = ttk.Scrollbar(self.masterFrame)
         self.scrollBar.pack(side = RIGHT, fill = Y)
 
-        self.animeListBox = Listbox(self.masterFrame, height = 8, width = 28, bd = 0)
+        self.animeListBox = Listbox(self.masterFrame, height = 13, width = 45, bd = 0)
         self.animeListBox.pack()
 
         self.scrollBar.config(command = self.animeListBox.yview)
@@ -160,27 +180,26 @@ class searchPage(Frame):
         self.buttonFrame = Frame(self)
         self.buttonFrame.pack()
 
-        self.buttonSelect = Button(self.buttonFrame, text = 'Selecionar', state = DISABLED, width = 10, command = lambda: controller.show_frame(directoryPage))
+        self.buttonSelect = ttk.Button(self.buttonFrame, text = 'Selecionar', width = 20, command = lambda: self.selecButtonControl(lambda: controller.show_frame(directoryPage)))
         self.buttonSelect.pack()
 
-        quitButton = Button(self, text = 'Sair', width = 10, command = lambda: controller.isQuit())
-        quitButton.pack()
+    def selecButtonControl(self, event):
+        if  searchPage.selectedItem == '':
+            messagebox.showerror("I'm a joke to you?", 'Selecione algum anime na lista.')
+            return
 
-    def verifyEntry(self):
-
-        while App.isRunning == True:
-
-            sleep(0.2)
-            if searchPage.selectedItem == '':
-                self.buttonSelect['state'] = DISABLED
-            else:
-                self.buttonSelect['state'] = NORMAL
+        if messagebox.askokcancel('', 'Tem certeza que deseja selecionar ' + searchPage.selectedItem + '?') == True:
+            event()
 
     def fillAnimeList(self):
         
         animes = db.getAnimeList(loginPage.userId)
 
         self.animeListBox.delete(0, END)
+
+        if not animes:
+            messagebox.showinfo('', 'Você não tem nenhum anime para upar!')
+            return
 
         for i in animes:
             searchPage.animeId[i[1]] = (i[0], i[2])
@@ -189,16 +208,30 @@ class searchPage(Frame):
             self.animeListBox.insert(END, i[1])
 
     def selectItem(self, event):
-        index = self.animeListBox.curselection()[0]
-        searchPage.selectedItem = self.animeListBox.get(index)
-        print(searchPage.selectedItem)
-        print(searchPage.animeId[searchPage.selectedItem])
 
-    @staticmethod
-    def run(arg):
-        t1 = Thread(target = arg)
-        t1.setDaemon(True)
-        t1.start()
+        try:
+
+            index = self.animeListBox.curselection()[0]
+            searchPage.selectedItem = self.animeListBox.get(index)
+            print(searchPage.selectedItem)
+            print(searchPage.animeId[searchPage.selectedItem])
+
+        except IndexError:
+            pass
+            
+    def menubar(self, parent):
+
+        menubar = Menu(parent, tearoff = 0)
+        fileMenu = Menu(menubar)
+        fileMenu.add_command(label = 'Sair', command = lambda: parent.isQuit())
+
+        registryMenu = Menu(menubar)
+        registryMenu.add_command(label = 'Cadastrar nova obra')
+
+        menubar.add_cascade(label = 'Arquivo', menu = fileMenu)
+        menubar.add_cascade(label = 'Opções', menu = registryMenu)
+
+        return menubar
 
 class directoryPage(Frame):
 
@@ -207,93 +240,244 @@ class directoryPage(Frame):
 
     def __init__(self, parent, controller, name = 'AnieZilla Directory'):
         Frame.__init__(self, parent)
-
-        directoryPage.run(self.enableUpButtonVerify)
         
-        self.controller = controller
-        self.parent = parent
         self.name = name
+        self.parent = parent
+        self.controller = controller
 
-        Label(self, text = 'Episódios no diretório', font = ('Arial', 12)).pack()
+        Label(self, text = 'Episódios no diretório', font = ('Arial', 12, 'bold')).pack(pady = 5)
 
         self.masterFrame = Frame(self, bd = 1, relief = GROOVE)
         self.masterFrame.pack(pady = 2)
 
-        self.scrollBar = Scrollbar(self.masterFrame)
+        self.scrollBar = ttk.Scrollbar(self.masterFrame)
         self.scrollBar.pack(side = RIGHT, fill = Y)
 
-        self.fileListBox = Listbox(self.masterFrame, height = 8, width = 31, bd = 0)
+        self.fileListBox = Listbox(self.masterFrame, height = 13, width = 45, bd = 0)
         self.fileListBox.pack()
 
         self.scrollBar.config(command = self.fileListBox.yview)
         self.fileListBox.config(yscrollcommand = self.scrollBar.set)
 
-        self.buttonsFrame = Frame(self, bg = 'red', width = 30, height = 10)
+        self.buttonsFrame = Frame(self, width = 30, height = 10)
         self.buttonsFrame.pack()
 
-        self.buttonDirectory = Button(self.buttonsFrame, text = 'Abrir Diretório', width = 12, command = lambda: self.openDirectory())
-        self.buttonDirectory.pack(side = LEFT)
+        self.buttonDirectory = ttk.Button(self.buttonsFrame, text = 'Abrir Diretório', width = 15, command = lambda: self.openDirectory())
+        self.buttonDirectory.pack(side = LEFT, pady = 5, padx = 2)
 
-        self.buttonBeginUpload = Button(self.buttonsFrame, text = 'Upar!', width = 12, state = DISABLED, command = lambda: controller.show_frame(uploadPage))
-        self.buttonBeginUpload.pack()
+        self.buttonBeginUpload = ttk.Button(self.buttonsFrame, text = 'Fazer Upload', width = 15, command = lambda: self.uploadButton(lambda: controller.show_frame(uploadPage)))
+        self.buttonBeginUpload.pack(pady = 5, padx = 2)
 
-        Button(self, text = 'Voltar', width = 10, command = lambda: controller.show_frame(searchPage)).pack()
-        Button(self, text = 'Sair', width = 10, command = lambda: controller.isQuit()).pack()
+        ttk.Button(self, text = 'Voltar', width = 10, command = lambda: controller.show_frame(searchPage)).pack()
+
+    def uploadButton(self, event):
+
+        if not directoryPage.fileList:
+            messagebox.showerror('Lista de episódios vazia', 'Não há nada na lista de episódios.')
+            return
+
+        event()
 
     def openDirectory(self):
 
         path = filedialog.askdirectory() + os.sep
 
-        directoryPage.fileList = self.mp4Filter(path)
-        directoryPage.configFiles = self.getConfigFiles(path)
+        print(path)
 
-        if not directoryPage.fileList:
-            self.fileListBox.delete(0, END)
-            messagebox.showwarning('', 'Não há arquivos .mp4 no diretório.')
-            return
+        if (len(path) > 1):
 
-        self.showFileList(directoryPage.fileList)
+            directoryPage.fileList = self.mp4Filter(path)
+            directoryPage.configFiles = self.getConfigFiles(path)
+
+            print(directoryPage.fileList)
+
+            if not directoryPage.fileList:
+                self.fileListBox.delete(0, END)
+                messagebox.showwarning('', 'Não há arquivos .mp4 no diretório.')
+                return
+
+            self.fillFileList(directoryPage.fileList)
+        else:
+            print('no directory selected')
 
     def getConfigFiles(self, path):
 
         return [i for i in os.listdir(path) if search('[.]cfg\\b', i)]
 
-    def showFileList(self, lst):
+    def fillFileList(self, lst):
 
         self.fileListBox.delete(0, END)
-        for i in lst:
-            self.fileListBox.insert(END, i)
+        self.fileListBox.insert(END, *lst)
 
     def mp4Filter(self, path):
         
         return [i for i in os.listdir(path) if search('[.]mp4\\b', i)]
 
-    def enableUpButtonVerify(self):
-        while App.isRunning == True:
-            sleep(0.2)
-            if not directoryPage.fileList:
-                self.buttonBeginUpload['state'] = DISABLED
-            else:
-                self.buttonBeginUpload['state'] = NORMAL
+    def menubar(self, parent):
 
-    @staticmethod
-    def run(arg):
-        t2 = Thread(target = arg)
-        t2.setDaemon = True
-        t2.start()
+        menubar = Menu(parent, tearoff = 0)
+        fileMenu = Menu(menubar)
+        fileMenu.add_command(label = 'Abrir Diretório', command = lambda: self.openDirectory())
+        fileMenu.add_separator()
+        fileMenu.add_command(label = 'Sair', command = lambda: self.controller.isQuit())
+
+        menubar.add_cascade(label = 'Arquivo', menu = fileMenu)
+
+        return menubar
 
 class uploadPage(Frame):
+    
+    def __init__(self, parent, controller, name = 'AnieZilla - Upload'):
+        Frame.__init__(self, parent)
 
-    pass
+        self.name = name
+        self.parent = parent
+        self.controller = controller
+        self.filelist = []
+
+        self.masterFrame = Frame(self, bd = 1, relief = GROOVE)
+        self.masterFrame.pack(pady = 2)
+
+        self.scrollBar = ttk.Scrollbar(self.masterFrame)
+        self.scrollBar.pack(side = RIGHT, fill = Y)
+
+        self.uploadListBox = Listbox(self.masterFrame, height = 13, width = 45, bd = 0)
+        self.uploadListBox.pack()
+
+        self.scrollBar.config(command = self.uploadListBox.yview)
+        self.uploadListBox.config(yscrollcommand = self.scrollBar.set)
+
+        self.buttonFrame = Frame(self)
+        self.buttonFrame.pack()
+
+        self.uploadButton = ttk.Button(self.buttonFrame, text = 'Iniciar upload', width = 15, command = lambda: self.startThread())
+        self.uploadButton.pack(side = LEFT, padx = 2)
+
+        self.pauseUploadButton = ttk.Button(self.buttonFrame, text = 'Pausar Upload', state = DISABLED, width = 15, command = lambda: self.startThread())
+        self.pauseUploadButton.pack(padx = 2)
+
+        self.progress = None
+
+    def startThread(self):
+
+        t1 = Thread(target = self.f)
+        t1.setDaemon = True
+        t1.start()
+
+    def f(self):
+
+        if self.progress != None:
+            self.progress.destroy()
+        
+        self.uploadButton['text'] = 'Parar Upload'
+        self.uploadButton['command'] = lambda: self.cancelUpload()
+        self.progress = progressBar(self, self.controller, 1)
+
+        for i in self.filelist:
+            i[1] = True
+            maxbytes = 0
+            self.progress.progress['value'] = 0
+            self.progress.progress['maximum'] = 4
+            for _ in range(5):
+                sleep(2)
+                self.progress.progress['value'] = maxbytes
+                maxbytes = maxbytes + 1
+
+            self.updateListBoxUpload()
+
+        self.uploadButton['text'] = 'Iniciar Upload'
+        self.uploadButton['command'] = lambda: self.startThread()
+
+        self.uploadListBox.delete(0, END)
+
+        return
+
+    def cancelUpload(self):
+        print('Cancel Upload')
+
+    def pauseUpload(self):
+        print('Pause Upload')
+
+    def helpWindow(self, parent):
+        
+        win = Toplevel(parent)
+        win.geometry('250x250')
+        win.resizable(0, 0)
+        win.title('Página de Ajuda AnieZilla')
+        Label(win, text = 'Teste').pack()
+
+    def updateListBoxUpload(self):
+        
+        self.uploadListBox.delete(0, END)
+        for i in self.filelist:
+            if i[1] == True:
+                self.uploadListBox.insert(END, i[0] + ' ...Terminado.')
+            else:
+                self.uploadListBox.insert(END, i[0])
+
+    def fillListBoxupload(self):
+        
+        for i in directoryPage.fileList:
+            self.filelist.append([i, False])
+
+        self.uploadListBox.delete(0, END)
+        for i in self.filelist:
+            self.uploadListBox.insert(END, i[0])
+
+    def menubar(self, parent):
+
+        menubar = Menu(parent, tearoff = 0)
+        fileMenu = Menu(menubar)
+        fileMenu.add_command(label = 'Sair', command = lambda: self.controller.isQuit())
+
+        optionsMenu = Menu(menubar)
+        optionsMenu.add_command(label = 'Iniciar uploads', state = DISABLED, command = lambda: self.startThread())
+        optionsMenu.add_separator()
+        optionsMenu.add_command(label = 'Parar todos os uplaods', state = DISABLED, command = lambda: self.cancelUpload())
+        optionsMenu.add_command(label = 'Pausar todos os uploads', state = DISABLED, command = lambda: self.pauseUpload())
+
+        helpMenu = Menu(menubar)
+        helpMenu.add_command(label = 'Sobre', command = lambda: self.helpWindow(self.controller))
+
+        menubar.add_cascade(label = 'Arquivo', menu = fileMenu)
+        menubar.add_cascade(label = 'Opções', menu = optionsMenu)
+        menubar.add_cascade(label = 'Ajuda', menu = helpMenu)
+
+        return menubar
+
+
+class Episode(object):
+
+    def __init__(self):
+        pass
+
+class progressBar(Frame):
+
+    def __init__(self, parent, controller, maxbytes):
+        Frame.__init__(self, parent)
+
+        self.parent = parent
+        self.controller = controller
+        self.bytes = 0
+        self.maxbytes = maxbytes
+        self.progress = ttk.Progressbar(parent, orient = 'horizontal', length = 202, mode = 'determinate')
+        self.progress.pack()
+
+    def updateProgress(self):
+        pass
 
 def main():
 
     app = App()
     app.geometry('376x361')
+
+    x = int(app.winfo_screenwidth() / 2 - 376 / 2)
+    y = int(app.winfo_screenheight() / 3 - 361 / 2)
+
+    app.geometry('+{}+{}'.format(x, y))
+
     app.minsize(376, 361)
     app.resizable(0, 0)
     app.mainloop()
 
 main()
-
-
