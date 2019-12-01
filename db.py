@@ -22,12 +22,11 @@ class Database(object):
 
         return rows
 
-    def insert(self, table, columns, *values):
+    def insertAnime(self, anime):
 
-        if table == 'episodios':
-            self.cur.execute("INSERT INTO episodios " + "(" + columns + ")" + " VALUES ('{}', '{}', '{}', '{}', '{}', '{}, '{}', '{}, '{}', '{}', '{}')".format(*values))
-        elif table == 'obras':
-            self.cur.execute("INSERT INTO obras " + "(" + columns + ")" + " VALUES ('{}', '{}', '{}', '{}', '{}', '{}, '{}', '{}, '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}, '{}', '{}, '{}')".format(*values))
+        date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(date)
+        self.cur.execute("INSERT INTO episodios (idUsuario, idObra, nome, numero, duracao, thumb, nomeArquivo, qualidadeMax, temporada, dataPostagem, views) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(anime.userId, anime.animeId, anime.args['nome'], anime.args['episodio'], anime.args['duracao'], anime.args['thumb'], anime.fileName, anime.args['qualidade'], anime.args['temporada'], date, 0))
 
         self.conn.commit()
 

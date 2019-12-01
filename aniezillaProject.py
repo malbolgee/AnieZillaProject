@@ -1,15 +1,22 @@
+import json
 import bcrypt
 import os, sys
 from db import *
 from tkinter import *
 from re import search
+from ftplib import FTP
 from time import sleep
 from threading import Thread
 from tkinter import messagebox, filedialog, ttk
 
+PNG = '[.]png\\b'
+MP4 = '[.]mp4\\b'
+CFG = '[.]cfg\\b'
+
 db = Database()
 
 def resource_path(relative_path):
+    
     try:
         base_path = sys._MEIPASS
     except Exception:
@@ -24,10 +31,10 @@ class App(Tk):
     def __init__(self, *args, **kwargs):
         Tk.__init__(self, *args, **kwargs)
 
-        container = Frame(self)
-        container.pack(side = 'top', fill = 'both', expand = True)
-        container.grid_rowconfigure(0, weight = 1)
-        container.grid_columnconfigure(0, weight = 1)
+        self.container = Frame(self)
+        self.container.pack(side = 'top', fill = 'both', expand = True)
+        self.container.grid_rowconfigure(0, weight = 1)
+        self.container.grid_columnconfigure(0, weight = 1)
 
         self.footFrame = Frame(self, width = 40, height = 30, bd = 1, relief = GROOVE)
         self.footFrame.pack(side = 'bottom', fill = 'both')
@@ -38,11 +45,11 @@ class App(Tk):
 
         for F in [loginPage, searchPage, directoryPage, uploadPage]:
             
-            frame = F(container, self)
+            frame = F(self.container, self)
             self.frames[F] = frame
             frame.grid(row = 0, column = 0, sticky = 'nsew')
 
-        self.show_frame(loginPage)
+        self.loadPages(loginPage, self.container, 222, 408)
 
     def show_frame(self, context):
         frame = self.frames[context]
@@ -60,6 +67,16 @@ class App(Tk):
         if frame.name != 'AnieZilla - Login':
             menubar = frame.menubar(self)
             self.configure(menu = menubar)
+
+    def loadPages(self, page, container, width, height):
+
+        self.geometry('{}x{}'.format(width, height))
+        x = int(self.winfo_screenwidth() / 2 - width / 2)
+        y = int(self.winfo_screenheight() / 3 - height / 2)
+        self.geometry('+{}+{}'.format(x, y))
+        self.minsize(width, height)
+
+        self.show_frame(page)
 
     def isQuit(self):
 
@@ -81,6 +98,7 @@ class loginPage(Frame):
         self.name = name
         self.login = None
         self.label = None
+        self.parent = parent
 
         loginPage.userVerify = StringVar()
         loginPage.passwordVerify = StringVar()
@@ -103,7 +121,6 @@ class loginPage(Frame):
         loginButton = ttk.Button(self, text = 'Login', width = 10, command = self.verifyLogin)
         loginButton.pack(pady = 5)
 
-
     def verifyLogin(self):
 
         if loginPage.userVerify.get() == '' or loginPage.passwordVerify.get() == '':
@@ -113,12 +130,10 @@ class loginPage(Frame):
         else:
 
             if self.isUser(loginPage.users) == True and self.isPassword(loginPage.passwordVerify.get(), self.login[2]) == True:
-                messagebox.showinfo('É nóis', 'Você está logado!')
+                self.controller.loadPages(searchPage, self.controller.container, 376, 361)
             else:
                 self.showLabelInvalidLogin()
                 return
-
-            self.controller.show_frame(searchPage)
 
     def isUser(self, user):
    
@@ -182,6 +197,7 @@ class searchPage(Frame):
 
         self.buttonSelect = ttk.Button(self.buttonFrame, text = 'Selecionar', width = 20, command = lambda: self.selecButtonControl(lambda: controller.show_frame(directoryPage)))
         self.buttonSelect.pack()
+        
 
     def selecButtonControl(self, event):
         if  searchPage.selectedItem == '':
@@ -235,7 +251,9 @@ class searchPage(Frame):
 
 class directoryPage(Frame):
 
+    path = ''
     fileList = []
+    thumbFiles = []
     configFiles = []
 
     def __init__(self, parent, controller, name = 'AnieZilla Directory'):
@@ -280,38 +298,66 @@ class directoryPage(Frame):
 
     def openDirectory(self):
 
-        path = filedialog.askdirectory() + os.sep
+        directoryPage.path = filedialog.askdirectory() + os.sep
+        path = directoryPage.path
 
         print(path)
 
         if (len(path) > 1):
 
-            directoryPage.fileList = self.mp4Filter(path)
-            directoryPage.configFiles = self.getConfigFiles(path)
+            directoryPage.fileList = self.getFiles(path, MP4)
+            directoryPage.configFiles = self.getFiles(path, CFG)
+            directoryPage.thumbFiles = self.getFiles(path, PNG)
 
             print(directoryPage.fileList)
+            print(directoryPage.configFiles)
+            print(directoryPage.thumbFiles)
+
+            fileSize = len(directoryPage.fileList)
+            configSize = len(directoryPage.configFiles)
+            thumbSize = len(directoryPage.thumbFiles)
 
             if not directoryPage.fileList:
                 self.fileListBox.delete(0, END)
                 messagebox.showwarning('', 'Não há arquivos .mp4 no diretório.')
                 return
 
+            if not directoryPage.configFiles:
+                self.fileListBox.delete(0, END)
+                messagebox.showwarning('', 'Não há arquivos .cfg no diretório.')
+                return
+                
+            if not directoryPage.thumbFiles:
+                self.fileListBox.delete(0, END)
+                messagebox.showwarning('', 'Não há arquivos de thumb no diretório.')
+                return
+
+            if fileSize > configSize:
+                self.fileListBox.delete(0, END)
+                messagebox.showwarning('', 'Um ou mais arquivos .cfg estão faltando.')
+                return
+            elif fileSize < configSize:
+                self.fileListBox.delete(0, END)
+                messagebox.showwarning('', 'Um ou mais arquivos .mp4 estão faltando.')
+                return
+            elif thumbSize < fileSize:
+                self.fileListBox.delete(0, END)
+                messagebox.showwarning('', 'Uma ou mais thumbs estão faltando.')
+                return
+     
             self.fillFileList(directoryPage.fileList)
+
         else:
             print('no directory selected')
 
-    def getConfigFiles(self, path):
+    def getFiles(self, path, pattern):
 
-        return [i for i in os.listdir(path) if search('[.]cfg\\b', i)]
+        return [i for i in os.listdir(path) if search(pattern, i)]
 
     def fillFileList(self, lst):
 
         self.fileListBox.delete(0, END)
         self.fileListBox.insert(END, *lst)
-
-    def mp4Filter(self, path):
-        
-        return [i for i in os.listdir(path) if search('[.]mp4\\b', i)]
 
     def menubar(self, parent):
 
@@ -326,14 +372,19 @@ class directoryPage(Frame):
         return menubar
 
 class uploadPage(Frame):
+
+    flag = True
     
     def __init__(self, parent, controller, name = 'AnieZilla - Upload'):
         Frame.__init__(self, parent)
 
         self.name = name
         self.parent = parent
+        self.tracker = None
         self.controller = controller
-        self.filelist = []
+        self.fileList = []
+        self.configFiles = []
+        self.thumbList = []
 
         self.masterFrame = Frame(self, bd = 1, relief = GROOVE)
         self.masterFrame.pack(pady = 2)
@@ -350,13 +401,11 @@ class uploadPage(Frame):
         self.buttonFrame = Frame(self)
         self.buttonFrame.pack()
 
-        self.uploadButton = ttk.Button(self.buttonFrame, text = 'Iniciar upload', width = 15, command = lambda: self.startThread())
+        self.uploadButton = ttk.Button(self.buttonFrame, text = 'Iniciar upload', width = 15, command = self.startThread)
         self.uploadButton.pack(side = LEFT, padx = 2)
 
-        self.pauseUploadButton = ttk.Button(self.buttonFrame, text = 'Pausar Upload', state = DISABLED, width = 15, command = lambda: self.startThread())
+        self.pauseUploadButton = ttk.Button(self.buttonFrame, text = 'Pausar Upload', state = DISABLED, width = 15, command = self.startThread)
         self.pauseUploadButton.pack(padx = 2)
-
-        self.progress = None
 
     def startThread(self):
 
@@ -366,29 +415,59 @@ class uploadPage(Frame):
 
     def f(self):
 
-        if self.progress != None:
-            self.progress.destroy()
-        
-        self.uploadButton['text'] = 'Parar Upload'
-        self.uploadButton['command'] = lambda: self.cancelUpload()
-        self.progress = progressBar(self, self.controller, 1)
+        path = directoryPage.path
 
-        for i in self.filelist:
-            i[1] = True
-            maxbytes = 0
-            self.progress.progress['value'] = 0
-            self.progress.progress['maximum'] = 4
-            for _ in range(5):
-                sleep(2)
-                self.progress.progress['value'] = maxbytes
-                maxbytes = maxbytes + 1
+        for video, config, thumb in zip(self.fileList, self.configFiles, self.thumbList):
+            
+            try:
+
+                _videoFile = open(path + video[0], 'rb')
+                _configFile = open(path + config, 'r', encoding = 'utf-8')
+                _thumbFile = open(path + thumb, 'rb')
+
+            except FileNotFoundError as fnf:
+                messagebox.showerror('Erro', fnf)
+                return
+
+            animeId = searchPage.animeId[searchPage.selectedItem][0]
+            animePath = searchPage.animeId[searchPage.selectedItem][1] + '/'
+            episodeJson = json.loads(_configFile.read())
+            episode = Episode(loginPage.userId, animeId, animePath, video[0], episodeJson)
+
+            maxbytes = int(os.path.getsize(path + video[0]))
+            self.tracker = progressBar(self, self.controller, maxbytes)
+
+            try:
+
+                ftp = FTP('ftp.anieclipse.tk')
+                ftp.login('anieclipse3', 'StarBugs#029')
+
+                ftp.storbinary('STOR ' + '/public_html/' + animePath + video[0], _videoFile, 8192, self.tracker.updateProgress)
+                ftp.storbinary('STOR ' + '/public_html/' + animePath + 'img/' + thumb, _thumbFile)
+
+                db.insertAnime(episode)
+                          
+                video[1] = True
+
+            except (ConnectionError, TimeoutError) as ce:
+                messagebox.showerror('Erro', ce)
+                _videoFile.close()
+                _thumbFile.close()
+                _configFile.close()
+                ftp.quit()
+                return
+
+            _videoFile.close()
+            _thumbFile.close()
+            _configFile.close()
+
+            if self.tracker != None:
+                self.tracker.progress.destroy()
 
             self.updateListBoxUpload()
 
-        self.uploadButton['text'] = 'Iniciar Upload'
-        self.uploadButton['command'] = lambda: self.startThread()
-
-        self.uploadListBox.delete(0, END)
+        messagebox.showinfo('', 'Todos os uploads terminaram!')
+        ftp.quit()
 
         return
 
@@ -409,7 +488,7 @@ class uploadPage(Frame):
     def updateListBoxUpload(self):
         
         self.uploadListBox.delete(0, END)
-        for i in self.filelist:
+        for i in self.fileList:
             if i[1] == True:
                 self.uploadListBox.insert(END, i[0] + ' ...Terminado.')
             else:
@@ -417,11 +496,13 @@ class uploadPage(Frame):
 
     def fillListBoxupload(self):
         
-        for i in directoryPage.fileList:
-            self.filelist.append([i, False])
+        for i, j, k in zip(directoryPage.fileList, directoryPage.configFiles, directoryPage.thumbFiles):
+            self.fileList.append([i, False])
+            self.configFiles.append(j)
+            self.thumbList.append(k)
 
         self.uploadListBox.delete(0, END)
-        for i in self.filelist:
+        for i in self.fileList:
             self.uploadListBox.insert(END, i[0])
 
     def menubar(self, parent):
@@ -445,11 +526,17 @@ class uploadPage(Frame):
 
         return menubar
 
-
 class Episode(object):
 
-    def __init__(self):
-        pass
+    def __init__(self, userId, animeId, animePath, fileName, args):
+        self.userId = userId
+        self.animeId = animeId
+        self.animePath = animePath
+        self.fileName = fileName
+        self.args = args
+
+    def getAtribute(self, name):
+        return self.args[name]
 
 class progressBar(Frame):
 
@@ -458,25 +545,21 @@ class progressBar(Frame):
 
         self.parent = parent
         self.controller = controller
-        self.bytes = 0
+        self.sizeWritten = 0
         self.maxbytes = maxbytes
         self.progress = ttk.Progressbar(parent, orient = 'horizontal', length = 202, mode = 'determinate')
-        self.progress.pack()
+        self.progress['value'] = 0
+        self.progress['maximum'] = 100
+        self.progress.pack(pady = 5)
 
-    def updateProgress(self):
-        pass
+    def updateProgress(self, block):
+        self.sizeWritten += 8192
+        percenteComplete = round((self.sizeWritten / self.maxbytes) * 100)
+        self.progress['value'] = percenteComplete
 
 def main():
 
     app = App()
-    app.geometry('376x361')
-
-    x = int(app.winfo_screenwidth() / 2 - 376 / 2)
-    y = int(app.winfo_screenheight() / 3 - 361 / 2)
-
-    app.geometry('+{}+{}'.format(x, y))
-
-    app.minsize(376, 361)
     app.resizable(0, 0)
     app.mainloop()
 
