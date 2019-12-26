@@ -1,3 +1,6 @@
+from tkinter import Frame, ttk
+from datetime import datetime
+
 class progressBar(Frame):
 
     def __init__(self, parent, controller, maxbytes, start_time):
