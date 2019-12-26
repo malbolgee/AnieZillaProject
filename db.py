@@ -25,10 +25,14 @@ class Database(object):
     def insertAnime(self, anime):
 
         date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(date)
         self.cur.execute("INSERT INTO episodios (idUsuario, idObra, nome, numero, duracao, thumb, nomeArquivo, qualidadeMax, temporada, dataPostagem, views) VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(anime.userId, anime.animeId, anime.args['nome'], anime.args['episodio'], anime.args['duracao'], anime.args['thumb'], anime.fileName, anime.args['qualidade'], anime.args['temporada'], date, 0))
-
         self.conn.commit()
+    
+    def isRepeated(self, id, number):
+
+        self.cur.execute("SELECT * FROM episodios WHERE idObra = {} and numero = {}".format(id, number))
+        
+        return self.cur.fetchone()
 
     def __del__(self):
         self.conn.close()
