@@ -5,7 +5,7 @@ from datetime import datetime
 class Database(object):
 
     def __init__(self):
-        self.conn = pymysql.connect('sql10.freesqldatabase.com', 'sql10312094', 'QSxqniDfqx', 'sql10312094', charset = 'utf8mb4')
+        self.conn = pymysql.connect('sql10.freesqldatabase.com', 'sql10314642', '8yukSSQamX', 'sql10314642', charset = 'utf8mb4')
         self.cur = self.conn.cursor()
 
     def getAnimeList(self, id):
