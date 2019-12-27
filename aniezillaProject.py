@@ -210,7 +210,7 @@ class searchPage(Frame):
             messagebox.showerror("Am I a joke to you?", 'Selecione algum anime na lista.')
             return
 
-        if messagebox.askokcancel('', 'Tem certeza que deseja selecionar ' + searchPage.selectedItem + '?') == True:
+        if messagebox.askokcancel('AnieZilla', 'Tem certeza que deseja selecionar ' + searchPage.selectedItem + '?') == True:
             event()
 
     def fillAnimeList(self):
@@ -220,7 +220,7 @@ class searchPage(Frame):
         self.animeListBox.delete(0, END)
 
         if not animes:
-            messagebox.showinfo('', 'Você não tem nenhum anime para upar!')
+            messagebox.showinfo('AnieZilla', 'Você não tem nenhum anime para upar!')
             return
 
         for i in animes:
@@ -334,8 +334,13 @@ class directoryPage(Frame):
                     directoryPage.thumbFiles = []
                     return
 
-                episodeNumbers = self.getFileNumber(episodeList)
-                directoryPage.thumbFiles = [i for i in imgFileList for j in episodeNumbers if re.search(r'\bthumb-{}[.]png\b'.format(j), i)]
+                print('Lista de episódios: ', episodeList)
+                episodeNumbers = self.getFileNumber(directoryPage.fileList)
+
+                print('Episode Numbers: ', episodeNumbers)
+                print('imgFileList ates do filtro: ', imgFileList)
+
+                directoryPage.thumbFiles = [i for i in imgFileList for j in episodeNumbers if re.search('\\bthumb-{}[.]png\\b'.format(j), i)]
 
                 if len(imgFileList) < len(directoryPage.fileList):
                     messagebox.showwarning('Aniezilla', 'Uma um mais thumbs estão faltando')
@@ -343,7 +348,12 @@ class directoryPage(Frame):
                     directoryPage.thumbFiles = []
                     return
 
+                print('fileList Preenchido na etapa de abrir diretório: ', directoryPage.fileList)
+                print('thumbList Preenchido na etapa de abrir diretório: ', directoryPage.thumbFiles)
+
                 self.fillFileList(self.getFileNames(episodeList))
+
+                print('Lista com os episódios selecionados preenchida!.')
             
             else:
                 messagebox.showerror('AnieZilla', 'É preciso existir uma pasta img com os arquivos de thumb no diretório dos episódios.')
@@ -379,6 +389,9 @@ class directoryPage(Frame):
         for number in fileList:
 
             x = re.findall(r'\d+', number[:-1])
+
+            print('Nome: ', number, 'Número: ', x)
+
             if x:
                 numbers.add(int(''.join(x)))
 
@@ -441,16 +454,22 @@ class uploadPage(Frame):
 
         path = directoryPage.path
 
+        print('path dos episódios: ', path)
+
         self.uploadButton['text'] = 'Parar upload'
         self.uploadButton['command'] = self.cancelUpload
         
         try:
             _configFile = open(path + 'config.cfg', 'r', encoding = 'utf-8')
         except FileNotFoundError as fnf:
-            messagebox.showwarning('AnieGrabber', fnf)
+            messagebox.showwarning('AnieZilla', fnf)
             return
 
+        print('abriu o arquivo .cfg com sucesso!.')
+
         for video, thumb in zip(self.fileList, self.thumbList):
+
+            print('Iterando agora sobre esse vídeo: {} e esta thumb: {}'.format(video, thumb))
             
             try:
 
@@ -458,9 +477,11 @@ class uploadPage(Frame):
                 _thumbFile = open(path + 'img\\' + thumb, 'rb')
 
             except FileNotFoundError as fnf:
-                messagebox.showerror('AnieGrabber', fnf)
+                messagebox.showerror('AnieZilla', fnf)
                 _configFile.close()
                 return
+
+            print('abriu o vídeo e a thumb com sucesso!')
 
             animeId = searchPage.animeId[searchPage.selectedItem][0]
             animePath = searchPage.animeId[searchPage.selectedItem][1] + '/'
@@ -476,6 +497,9 @@ class uploadPage(Frame):
                 continue
 
             maxbytes = int(os.path.getsize(path + video[0]))
+
+            print('O tamanho total do arquivo é: ', maxbytes, ' bytes')
+
             start_time = datetime.now()
 
             self.tracker = progressBar(self, self.controller, maxbytes, start_time)
@@ -484,33 +508,43 @@ class uploadPage(Frame):
 
                 ftp = FTP('ftp.anieclipse.tk')
                 ftp.login('anieclipse3', 'StarBugs#029')
+
                 self.controller.percentageLabel['text'] = '0% - 0 Kbps'
+
+                print('Começando upload do vídeo...')
+                print('Path do anime no servidor: ' + '/public_html/' + animePath + video[0])
                 ftp.storbinary('STOR ' + '/public_html/' + animePath + video[0], _videoFile, 8192, self.tracker.updateProgress)
+
+                print('Upload do vídeo terminou com sucesso!')
+                print('Começando upload da thumb...')
+                print('Path da thumb no servidor: ' + '/public_html/' + animePath + 'img/' + thumb)
                 ftp.storbinary('STOR ' + '/public_html/' + animePath + 'img/' + thumb, _thumbFile)
+                print('Upload da thumb terminou com sucesso!')
 
                 video[1] = True
-                db.insertAnime(episode)
 
-            except (ConnectionError, TimeoutError) as ce:
+                print('Tentando inserir o episódio no banco de dados...')
+                db.insertAnime(episode)
+                print('Inserção terminada com sucesso!')
+
+            except Exception as ce:
                 messagebox.showerror('AnieZilla', ce)
-                _videoFile.close()
-                _thumbFile.close()
                 _configFile.close()
-                ftp.quit()
                 return
 
-            _videoFile.close()
-            _thumbFile.close()
+            finally:
 
-            if self.tracker != None:
-                self.tracker.progress.destroy()
+                _videoFile.close()
+                _thumbFile.close()
+
+                if self.tracker != None:
+                    self.tracker.progress.destroy()
+
+                ftp.quit()
 
             self.updateListBoxUpload()
 
-        messagebox.showinfo('', 'Todos os uploads terminaram!')
-        ftp.quit()
-
-        return
+        messagebox.showinfo('AnieZilla', 'Todos os uploads terminaram!')
 
     def cancelUpload(self):
         pass
@@ -528,22 +562,30 @@ class uploadPage(Frame):
 
     def updateListBoxUpload(self):
         
+        print('Atualizando lista de episódios para upload')
+
         self.uploadListBox.delete(0, END)
         for i in self.fileList:
             if i[1] == True:
                 self.uploadListBox.insert(END, i[0] + ' ...Terminado.')
-            if i[2] == True:
+            elif i[2] == True:
                 self.uploadListBox.insert(END, i[0] + ' ...Repetido, não upado.')
             else:
                 self.uploadListBox.insert(END, i[0])
 
     def fillListBoxupload(self):
         
+
+        print('Preenchendo atributo de lista de arquivos para upload...')
         for i, j in zip(directoryPage.fileList, directoryPage.thumbFiles):
+            print('Iterando no video: {} e thumb: {}'.format(i, j))
             self.fileList.append([i, False, False])
             self.thumbList.append(j)
 
         self.uploadListBox.delete(0, END)
+
+        print('Lista de arquivos para upload: ', self.fileList)
+
         for i in self.fileList:
             self.uploadListBox.insert(END, i[0])
 
