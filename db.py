@@ -13,7 +13,7 @@ class Database(object):
         self.conn = pymysql.connect('aniedb.mysql.dbaas.com.br', 'aniedb', 'starred1234', 'aniedb', charset = 'utf8mb4')
         self.cur = self.conn.cursor()
 
-        self.cur.execute("SELECT id, nome, diretorio FROM obras INNER JOIN animes ON id = idObra WHERE upado = 0 AND idUsuario = {}".format(id))
+        self.cur.execute("SELECT id, nome, diretorio FROM obras INNER JOIN animes ON id = idObra WHERE upado = 0")
         rows = self.cur.fetchall()
 
         self.conn.close()
@@ -56,6 +56,6 @@ class Database(object):
 
         return result
 
-# db = Database()
+db = Database()
 
-# print(db.isRepeated(186, 1))
+print(db.isRepeated(186, 1))
