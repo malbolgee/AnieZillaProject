@@ -110,7 +110,7 @@ class loginPage(Frame):
         loginPage.userVerify = StringVar()
         loginPage.passwordVerify = StringVar()
 
-        img = PhotoImage(file = resource_path('AnieLogo.png'))
+        img = PhotoImage(file = resource_path(r'assets\AnieLogo.png'))
 
         imageLabel = Label(self, image = img)
         imageLabel.image = img
@@ -502,18 +502,19 @@ class uploadPage(Frame):
 
             start_time = datetime.now()
 
-            self.tracker = progressBar(self, self.controller, maxbytes, start_time)
 
             try:
 
-                ftp = FTP('ftp.anieclipse.tk')
-                ftp.login('anieclipse3', 'StarBugs#029')
+                ftp = FTP('ftp.anieclipse.tk', 'anieclipse3', 'StarBugs#029')
 
+                self.tracker = progressBar(self, self.controller, maxbytes, start_time, ftp)
                 self.controller.percentageLabel['text'] = '0% - 0 Kbps'
 
                 print('Começando upload do vídeo...')
-                print('Path do anime no servidor: ' + '/public_html/' + animePath + video[0])
-                ftp.storbinary('STOR ' + '/public_html/' + animePath + video[0], _videoFile, 8192, self.tracker.updateProgress)
+                serverPath = '/public_html/' + animePath + video[0]
+                print('Path do anime no servidor: ' + serverPath)
+                self.tracker.timeBegin = datetime.now()
+                print(ftp.storbinary('STOR ' + serverPath, _videoFile, 20000, self.tracker.updateProgress))
 
                 print('Upload do vídeo terminou com sucesso!')
                 print('Começando upload da thumb...')
