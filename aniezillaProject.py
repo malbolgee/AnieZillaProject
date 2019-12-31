@@ -41,7 +41,7 @@ class App(Tk):
         self.rightFootFrame = Frame(self.footFrame)
         self.rightFootFrame.pack(side = RIGHT)
 
-        self.footLabel = Label(self.leftFootFrame, text = 'v1.0', font = ('Calibri', 8, 'italic'))
+        self.footLabel = Label(self.leftFootFrame, text = 'v1.1', font = ('Calibri', 8, 'italic'))
         self.footLabel.pack(side = LEFT)
 
         self.percentageLabel = Label(self.rightFootFrame, text = '', font = ('Calibri', 8, 'italic'))
@@ -129,6 +129,7 @@ class loginPage(Frame):
         loginButton.pack(pady = 5)
 
     def verifyLogin(self):
+        """ Handles the login doing the auth for the user. """
 
         if loginPage.userVerify.get() == '' or loginPage.passwordVerify.get() == '':
             messagebox.showwarning('Campos não preenchidos', 'Todos os campos precisam ser preenchidos')
@@ -143,6 +144,7 @@ class loginPage(Frame):
                 return
 
     def isUser(self, users):
+        """ Verifies if the user entered is valid. """
    
         for user in users:
             if loginPage.userVerify.get() == user[1]:
@@ -153,6 +155,7 @@ class loginPage(Frame):
         return False        
 
     def isPassword(self, password, hash):
+        """ Verifies if the password entered is valid. """
 
         if bcrypt.hashpw(password.encode('utf8'), hash.encode('utf8')) == hash.encode('utf8'):
             return True
@@ -204,7 +207,6 @@ class searchPage(Frame):
         self.buttonSelect = ttk.Button(self.buttonFrame, text = 'Selecionar', width = 20, command = lambda: self.selecButtonControl(lambda: controller.show_frame(directoryPage)))
         self.buttonSelect.pack()
         
-
     def selecButtonControl(self, event):
         if  searchPage.selectedItem == '':
             messagebox.showerror("Am I a joke to you?", 'Selecione algum anime na lista.')
@@ -214,6 +216,7 @@ class searchPage(Frame):
             event()
 
     def fillAnimeList(self):
+        """ Fills the Listbox of shows available for episode upload. """
         
         animes = db.getAnimeList(loginPage.userId)
 
@@ -230,6 +233,7 @@ class searchPage(Frame):
             self.animeListBox.insert(END, i[1])
 
     def selectItem(self, event):
+        """ Returns the selected item in the listbox of show's """
 
         try:
 
@@ -265,6 +269,7 @@ class directoryPage(Frame):
         self.name = name
         self.parent = parent
         self.controller = controller
+        self.episodeNumbers = None
 
         Label(self, text = 'Episódios Selecionados', font = ('Calibri', 12, 'italic')).pack(pady = 5)
 
@@ -300,6 +305,7 @@ class directoryPage(Frame):
         event()
 
     def openDirectory(self):
+        """ Method handles the file choosing. Making all the necessary treatment. """
         
         fileNames = filedialog.askopenfilenames(initialdir = os.getcwd(), title = 'Selecione os Episódios', filetypes = [('Arquivos .mp4', '*.mp4')])
 
@@ -335,12 +341,12 @@ class directoryPage(Frame):
                     return
 
                 print('Lista de episódios: ', episodeList)
-                episodeNumbers = self.getFileNumber(directoryPage.fileList)
+                self.episodeNumbers = self.getFileNumber(directoryPage.fileList)
 
-                print('Episode Numbers: ', episodeNumbers)
+                print('Episode Numbers: ', self.episodeNumbers)
                 print('imgFileList ates do filtro: ', imgFileList)
 
-                directoryPage.thumbFiles = [i for i in imgFileList for j in episodeNumbers if re.search('\\bthumb-{}[.]png\\b'.format(j), i)]
+                directoryPage.thumbFiles = [i for i in imgFileList for j in self.episodeNumbers if re.search('\\bthumb-{}[.]png\\b'.format(j), i)]
 
                 if len(imgFileList) < len(directoryPage.fileList):
                     messagebox.showwarning('Aniezilla', 'Uma um mais thumbs estão faltando')
@@ -359,10 +365,12 @@ class directoryPage(Frame):
                 messagebox.showerror('AnieZilla', 'É preciso existir uma pasta img com os arquivos de thumb no diretório dos episódios.')
 
     def episodeNameVerify(self):
+        """ Method verifies if all the file names are in the pattern. """
 
         return all([re.search(r'\bepisodio-\d+[.]mp4\b', i) for i in directoryPage.fileList])
 
     def thumbNameVerify(self):
+        """ Method verifies if all the file names are in the pattern. """
 
         return all([re.search(r'\bthumb-\d+[.]png\b', i) for i in directoryPage.thumbFiles])
 
@@ -379,11 +387,13 @@ class directoryPage(Frame):
         return [i for i in os.listdir(path) if search(pattern, i)]
 
     def fillFileList(self, lst):
-
+        """ Method fills the Listbox with the selected files. """
+        
         self.fileListBox.delete(0, END)
         self.fileListBox.insert(END, *lst)
 
     def getFileNumber(self, fileList):
+        """ Method extracts the episode number in the file name. """
 
         numbers = set({})
         for number in fileList:
@@ -445,6 +455,7 @@ class uploadPage(Frame):
         self.pauseUploadButton.pack(padx = 2)
 
     def startThread(self):
+        """ Method starts a thread in which the upload module is going to run. """
 
         t1 = Thread(target = self.f)
         t1.setDaemon = True
@@ -452,21 +463,50 @@ class uploadPage(Frame):
 
     def f(self):
 
+        flag = False
         path = directoryPage.path
 
         print('path dos episódios: ', path)
-
-        self.uploadButton['text'] = 'Parar upload'
-        self.uploadButton['command'] = self.cancelUpload
         
+        self.uploadButton['state'] = 'disabled'
+        self.uploadButton['text'] = 'Parar Upload'
+
         try:
-            _configFile = open(path + 'config.cfg', 'r', encoding = 'utf-8')
-        except FileNotFoundError as fnf:
-            messagebox.showwarning('AnieZilla', fnf)
+
+            _configFile = open(path + 'config.cfg', 'r+', encoding = 'utf-8')        
+
+        except FileNotFoundError:
+            messagebox.showerror('AnieZilla', 'Arquivo config.cfg não encontrado.')
             return
 
         print('abriu o arquivo .cfg com sucesso!.')
+        print('Comparando quantidade de entradas no .cfg com a quantidade de arquivos na fila para upar...')
 
+        result = self.cfgLineCount(_configFile)
+
+        if result == 1:
+            messagebox.showerror('AnieZilla', 'Há mais arquivos selecionados do que informações disponíveis.')
+            _configFile.close()
+            return
+        else:
+
+            if not self.episodeNumberVerify(_configFile):
+                messagebox.showerror('AnieZilla', 'Você está tentando upar episódios para os quais não existem informações.')
+                _configFile.close()
+                return
+
+            if result == 0:
+                ...
+            elif result == -1:
+                
+                flag = True
+                print('A quantidade de infos é maior do que a quantidade de episódios selecionada...')
+                self.cfgSelectEntry(path, _configFile)
+                print('Selecionando as linhas corretas de informações...')
+                _tmpConfigFile = open(path + 'config.tmp', 'r+', encoding = 'utf-8')
+                print('Criado arquivo config temporário para lidar com isso...')
+
+        self.thumbList.sort(key = len)
         for video, thumb in zip(self.fileList, self.thumbList):
 
             print('Iterando agora sobre esse vídeo: {} e esta thumb: {}'.format(video, thumb))
@@ -478,7 +518,14 @@ class uploadPage(Frame):
 
             except FileNotFoundError as fnf:
                 messagebox.showerror('AnieZilla', fnf)
-                _configFile.close()
+
+                if flag == True:
+                    _configFile.close()
+                    _tmpConfigFile.close()
+                    os.remove(path + 'config.tmp')
+                else:
+                    _configFile.close()
+
                 return
 
             print('abriu o vídeo e a thumb com sucesso!')
@@ -486,26 +533,74 @@ class uploadPage(Frame):
             animeId = searchPage.animeId[searchPage.selectedItem][0]
             animePath = searchPage.animeId[searchPage.selectedItem][1] + '/'
 
-            episodeJson = json.loads(_configFile.readline())
+            if flag == True:
+                print('Lendo o arquivo de infos do cfg temporário...')
+                episodeJson = json.loads(_tmpConfigFile.readline())
+            else:
+                print('Lendo o arquivo de infos do cfg principal...')
+                episodeJson = json.loads(_configFile.readline())
+
+            print('Criando o objeto episódio...')
             episode = Episode(loginPage.userId, animeId, animePath, video[0], episodeJson)
 
-            if db.isRepeated(episode.animeId, episode.getAtribute('episodio')):
-                video[2] = True
-                _videoFile.close()
-                _thumbFile.close()
-                self.updateListBoxUpload()
-                continue
+            print('Consultando no banco por repetição de registro...')
+            print('A consulta no banco retornou: ', db.isRepeated(episode))
 
-            maxbytes = int(os.path.getsize(path + video[0]))
+            try:
+                
+                if db.isComplete(episode) == True:
+                    messagebox.showwarning('AnieZilla', 'A obra na para a qual você está tentando upar o episódio já está completa!')
+                    _thumbFile.close()
+                    _videoFile.close()
 
-            print('O tamanho total do arquivo é: ', maxbytes, ' bytes')
+                    if flag == True:
+                        _configFile.close()
+                        _tmpConfigFile.close()
+                        os.remove(path + 'config.tmp')
+                    else:
+                        _configFile.close()
 
-            start_time = datetime.now()
+                    return
 
+            except Exception as exe:
+                messagebox.showerror('AnieZilla', exe)
+                return
 
             try:
 
+                if db.isRepeated(episode) != None:
+                    video[2] = True
+                    _videoFile.close()
+                    _thumbFile.close()
+
+                    if flag == True:
+                        print('Apagando entrada dos cfgs...')
+                        self.eraseUploadedLine(_configFile, episodeJson)
+                        self.eraseUploadedLine(_tmpConfigFile, episodeJson)
+                    else:
+                        print('Apagando entrada do cfg principal...')
+                        self.eraseUploadedLine(_configFile, episodeJson)
+
+                    self.updateListBoxUpload()
+                    print('O episódio já estava cadastrado no banco, indo para o próximo da lista...')
+                    continue
+
+            except Exception as exe:
+                messagebox.showerror('AnieZilla', exe)
+                _thumbFile.close()
+                _videoFile.close()
+            
+                continue
+
+            maxbytes = int(os.path.getsize(path + video[0]))
+            print('O tamanho total do arquivo é: ', maxbytes, ' bytes')
+            start_time = datetime.now()
+
+            try:
+                
+                print('Iiniciando conexão ftp...')
                 ftp = FTP('ftp.anieclipse.tk', 'anieclipse3', 'StarBugs#029')
+                print('Conexão iniciada com sucesso!')
 
                 self.tracker = progressBar(self, self.controller, maxbytes, start_time, ftp)
                 self.controller.percentageLabel['text'] = '0% - 0 Kbps'
@@ -515,28 +610,66 @@ class uploadPage(Frame):
                 print('Path do anime no servidor: ' + serverPath)
                 self.tracker.timeBegin = datetime.now()
                 print(ftp.storbinary('STOR ' + serverPath, _videoFile, 20000, self.tracker.updateProgress))
-
                 print('Upload do vídeo terminou com sucesso!')
+
+                serverPath = '/public_html/' + animePath + 'img/' + thumb
                 print('Começando upload da thumb...')
-                print('Path da thumb no servidor: ' + '/public_html/' + animePath + 'img/' + thumb)
-                ftp.storbinary('STOR ' + '/public_html/' + animePath + 'img/' + thumb, _thumbFile)
+                print('Path da thumb no servidor: ', serverPath)
+                print(ftp.storbinary('STOR ' + serverPath, _thumbFile))
                 print('Upload da thumb terminou com sucesso!')
 
                 video[1] = True
 
-                print('Tentando inserir o episódio no banco de dados...')
-                db.insertAnime(episode)
-                print('Inserção terminada com sucesso!')
+                if db.isLast(episode) == True:
+                    print('Esse episódio é o último dessa obra, fazendo transaction (update e inserção)')
+                    db.insertAndUpdate(episode)
+                    print('Transaction completada com sucesso!')
+                    messagebox.showinfo('AnieZilla', 'O ùltimo episódio dessa obra foi upado!')
+
+                    if flag == True:
+                        print('Atualzando os .cfg...')
+                        self.eraseUploadedLine(_configFile, episodeJson)
+                        self.eraseUploadedLine(_tmpConfigFile, episodeJson)
+                    else:
+                        print('Atualizando o .cfg principal...')
+                        self.eraseUploadedLine(_configFile, episodeJson)
+                    
+                else:
+                    print('Esse episódio não é o último dessa obra, inserindo normalmente (apenas inserção)')
+                    db.insertEpisode(episode)
+                    print('Inserção terminada com sucesso!')
+
+                    if flag == True:
+                        print('Atualizando os .cfg...')
+                        self.eraseUploadedLine(_configFile, episodeJson)
+                        self.eraseUploadedLine(_tmpConfigFile, episodeJson)
+                    else:
+                        print('Atualizando o .cfg principal...')
+                        self.eraseUploadedLine(_configFile, episodeJson)
+
+                print('Atualização realizada com sucesso!')
 
             except Exception as ce:
                 messagebox.showerror('AnieZilla', ce)
-                _configFile.close()
+                if flag == True:
+                    _configFile.close()
+                    _tmpConfigFile.close()
+                    os.remove(path + 'config.tmp')
+                else:
+                    _configFile.close()
+
                 return
 
             finally:
 
                 _videoFile.close()
                 _thumbFile.close()
+
+                if flag == True and not _tmpConfigFile.closed:
+
+                    print('Atualizando .cfg...')
+                    self.updateCfgFile(_tmpConfigFile, _configFile)
+                    print('Atualização realizada com sucesso!')
 
                 if self.tracker != None:
                     self.tracker.progress.destroy()
@@ -545,13 +678,109 @@ class uploadPage(Frame):
 
             self.updateListBoxUpload()
 
+        if self.cfgLineCount(_configFile) == 2:
+            _configFile.close()
+            os.remove(path + 'config.cfg')
+        else:
+            _configFile.close()
+
+        if flag == True:
+            _tmpConfigFile.close()
+            os.remove(path + 'config.tmp')
+
         messagebox.showinfo('AnieZilla', 'Todos os uploads terminaram!')
 
+    def cfgSelectEntry(self, path, cfgFile):
+        """ Method chooses the right lines of info in the .cfg file for the episodes selected. """
+
+        episodeNumbers = self.controller.frames[directoryPage].episodeNumbers
+
+        print('EpisodeNumbers in cfgSelecEntry: ', episodeNumbers)
+        
+        with open(path + 'config.tmp', 'w+', encoding = 'utf-8') as tmp:
+
+            for line in cfgFile:
+
+                x = json.loads(line)
+
+                if x['episodio'] in episodeNumbers:
+                    tmp.write(json.dumps(x, ensure_ascii = True))
+                    tmp.write('\n')
+
+            cfgFile.seek(0)
+
+    def eraseUploadedLine(self, cfgFile, entry):
+        """ Method erases a line of info in the .cfg file whose episode has already been uploaded and registered in the database. """
+        
+        arqresult = cfgFile.readlines()
+        cfgFile.seek(0)
+
+        for line in arqresult:
+            if line != entry:
+                cfgFile.write(line)
+
+        cfgFile.truncate()
+        cfgFile.seek(0)
+
+    def updateCfgFile(self, cfgFileTmp, cfgFile):
+        """ Method updates the main .cfg file with the changes made in the temporary .cfg file. """
+        
+        resultcfg = cfgFile.readlines()
+        resulttmp = cfgFileTmp.readlines()
+        
+        cfgFile.seek(0)
+        cfgFileTmp.seek(0)
+
+        for line in resultcfg:
+            if line not in resulttmp:
+                cfgFile.write(line)
+
+        cfgFile.truncate()
+        cfgFile.seek(0)
+
+    def episodeNumberVerify(self, cfgFile):
+        """ Method verifies if the numbers of the episodes in the .cfg file info are equal as the selected files. """
+
+        episodeNumbers = self.controller.frames[directoryPage].episodeNumbers
+
+        print('EpisodeNumbers in episodeNumbers verify: ', episodeNumbers)
+
+        for line in cfgFile:
+
+            x = json.loads(line)
+
+            if x['episodio'] not in episodeNumbers:
+                return False
+
+        cfgFile.seek(0)
+
+        return True
+
+    def cfgLineCount(self, cfgFile):
+        """ Method count the number of lines in the .cfg file. """
+        
+        i = 0
+        for _ in cfgFile:
+            i += 1
+
+        if i == len(self.fileList):
+            i = 0
+        elif i < len(self.fileList):
+            i = 1
+        elif i > len(self.fileList):
+            i = -1
+        elif i == 0:
+            i = 2
+
+        cfgFile.seek(0)
+
+        return i
+
     def cancelUpload(self):
-        pass
+        ...
 
     def pauseUpload(self):
-        pass
+        ...
 
     def helpWindow(self, parent):
         
@@ -562,6 +791,7 @@ class uploadPage(Frame):
         Label(win, text = 'Teste').pack()
 
     def updateListBoxUpload(self):
+        """ Method updates the Listbox of the progress on de episodes uploads. """
         
         print('Atualizando lista de episódios para upload')
 
@@ -575,7 +805,7 @@ class uploadPage(Frame):
                 self.uploadListBox.insert(END, i[0])
 
     def fillListBoxupload(self):
-        
+        """ Method fills the Listbox with the selected episodes for upload. """
 
         print('Preenchendo atributo de lista de arquivos para upload...')
         for i, j in zip(directoryPage.fileList, directoryPage.thumbFiles):
