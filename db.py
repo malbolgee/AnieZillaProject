@@ -110,7 +110,7 @@ class Database(object):
         self.conn.begin()
         self.cur = self.conn.cursor()
 
-        args = episode.getAtributeList()
+        args = episode.getAttributeList()
         args.extend([timestamp(), VIEWS])
         print('Essa é a lista de argumentos para inserior no banco: ', args)
 
