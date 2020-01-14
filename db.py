@@ -1,6 +1,7 @@
 import pymysql
 import pymysql.cursors
 from constants import *
+from tkinter import messagebox
 
 class Database(object):
 
@@ -39,18 +40,15 @@ class Database(object):
         self.cur = self.conn.cursor()
         args = episode.getAttributeList()
         args.extend([timestamp(), VIEWS])
-        print('Essa é a lista de argumentos para inserir no banco: ', args)
 
         try:
             self.cur.execute(INSERT_QUERY, args)
         except Exception as ex:
-            print('A inserção falhou, dando rollback nas mudanças...', ex)
+            messagebox.showerror('AnieZilla', ex)
             self.conn.rollback()
         else:
-            print('Commitando as mudanças feitas...')
             self.conn.commit()
         finally:
-            print('Fechando conexão com o banco de dados...')
             self.conn.close()
     
     def isRepeated(self, episode):
@@ -80,8 +78,6 @@ class Database(object):
         self.cur.execute(SELECT_COUNT_QUERY, episode.animeId)
         result = int(self.cur.fetchone()[0])
 
-        print('Quantidade de episódios dessa obra: ', result)
-
         self.conn.close()
 
         return result
@@ -93,7 +89,13 @@ class Database(object):
         self.cur = self.conn.cursor()
 
         self.cur.execute(SELECT_NUM_EPISODES_QUERY, episode.animeId)
-        result = int(self.cur.fetchone()[0])
+        result = self.cur.fetchone()[0]
+
+        if result != '??':
+            result = int(result)
+        else:
+            result = -1
+
         self.conn.close()
 
         return result
@@ -112,19 +114,16 @@ class Database(object):
 
         args = episode.getAttributeList()
         args.extend([timestamp(), VIEWS])
-        print('Essa é a lista de argumentos para inserior no banco: ', args)
 
         try:
             self.cur.execute(INSERT_QUERY, args)
             self.cur.execute(UPDATE_QUERY, episode.animeId)
-        except Exception as exe:
-            print('Um problema foi encontrado, dando rollback nas mudanças...', exe)
+        except Exception as ex:
+            messagebox.showerror('AnieZilla', ex)
             self.conn.rollback()
         else:
-            print('Commitando as mudanças...')
             self.conn.commit()
         finally:
-            print('Finalizando conexão com o banco...')
             self.conn.close()
 
     def isLast(self, episode):
@@ -142,3 +141,4 @@ class Database(object):
             return True
         else:
             return False
+
