@@ -44,7 +44,6 @@ class Database(object):
         try:
             self.cur.execute(INSERT_QUERY, args)
         except Exception as ex:
-            messagebox.showerror('AnieZilla', ex)
             self.conn.rollback()
         else:
             self.conn.commit()
@@ -119,7 +118,6 @@ class Database(object):
             self.cur.execute(INSERT_QUERY, args)
             self.cur.execute(UPDATE_QUERY, episode.animeId)
         except Exception as ex:
-            messagebox.showerror('AnieZilla', ex)
             self.conn.rollback()
         else:
             self.conn.commit()
