@@ -11,7 +11,7 @@ from tkinter import messagebox, filedialog, ttk
 
 db = Database()
 
-DEBUG = True
+DEBUG = False
 
 def resource_path(relative_path):
     
@@ -23,8 +23,6 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 class App(Tk):
-
-    flag = False
 
     def __init__(self, *args, **kwargs):
         Tk.__init__(self, *args, **kwargs)
@@ -640,24 +638,17 @@ class uploadPage(Frame):
 
                 video[1] = True
 
-                if db.isLast(episode) == True:
-                    db.insertAndUpdate(episode)
-                    messagebox.showinfo('AnieZilla', 'O último episódio dessa obra foi upado!')
-
-                    if flag == True:
-                        self.eraseUploadedLine(_configFile, episodeJson)
-                        self.eraseUploadedLine(_tmpConfigFile, episodeJson)
+                if not db.isRepeated(episode):
+                    if db.isLast(episode) == True:
+                        db.insertAndUpdate(episode)
                     else:
-                        self.eraseUploadedLine(_configFile, episodeJson)
-                    
+                        db.insertEpisode(episode)
+
+                if flag == True:
+                    self.eraseUploadedLine(_configFile, episodeJson)
+                    self.eraseUploadedLine(_tmpConfigFile, episodeJson)
                 else:
-                    db.insertEpisode(episode)
-
-                    if flag == True:
-                        self.eraseUploadedLine(_configFile, episodeJson)
-                        self.eraseUploadedLine(_tmpConfigFile, episodeJson)
-                    else:
-                        self.eraseUploadedLine(_configFile, episodeJson)
+                    self.eraseUploadedLine(_configFile, episodeJson)
 
             except Exception as ce:
                 messagebox.showerror('AnieZilla', ce)
