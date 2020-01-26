@@ -8,15 +8,14 @@ class progressBar(Frame):
 
         self.ftp = ftp
         self.timeBegin = 0
-        self.parent = parent
         self.controller = controller
         self.sizeWritten = 0
         self.start_time = start_time
         self.maxbytes = maxbytes
-        self.progress = ttk.Progressbar(parent, orient = 'horizontal', length = 202, mode = 'determinate')
+        self.progress = ttk.Progressbar(parent, orient = 'horizontal', length = 292, mode = 'determinate')
         self.progress['value'] = 0
         self.progress['maximum'] = 100
-        self.progress.pack(pady = 5)
+        self.progress.grid(row = 0, column = 0)
 
     def updateProgress(self, block):
         self.sizeWritten += 20000
@@ -28,5 +27,5 @@ class progressBar(Frame):
             self.ftp.voidcmd('NOOP')
 
         kbytespersec = (self.sizeWritten / 1024) / (end_time - self.start_time).total_seconds()
-        self.controller.percentageLabel['text'] = '{}%      -      {:.0f} Kbps'.format(percenteComplete, kbytespersec)
+        self.controller.percentageLabel['text'] = '{}% - {:.0f} Kbps'.format(percenteComplete, kbytespersec)
         self.progress['value'] = percenteComplete
