@@ -5,11 +5,6 @@ USER = 'aniedb'
 PASSWORD = 'starred1234'
 DBNAME = 'aniedb'
 
-# SERVER = 'sql10.freesqldatabase.com'
-# USER = 'sql10314642'
-# PASSWORD = '8yukSSQamX'
-# DBNAME = 'sql10314642'
-
 VIEWS = 0
 
 INSERT_QUERY = "INSERT INTO episodios (idUsuario, idObra, nome, numero, duracao, thumb, nomeArquivo, qualidadeMax, temporada, dataPostagem, views) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
@@ -24,3 +19,10 @@ def timestamp():
     """ Returns a timestamp for the current date and time. """
 
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+""" Constants for the upload process """
+FINISHED = 0
+REPEATED = 1
+ERROR = 3
+PROCESSING = 4
+QUEUED = 5
