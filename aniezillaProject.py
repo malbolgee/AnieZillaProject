@@ -8,10 +8,12 @@ from episode import *
 from progressbar import *
 from threading import Thread
 from tkinter import messagebox, filedialog, ttk
+import glob
+from time import sleep
 
 db = Database()
 
-DEBUG = False
+DEBUG = True
 
 def resource_path(relative_path):
     
@@ -28,7 +30,7 @@ class App(Tk):
         Tk.__init__(self, *args, **kwargs)
 
         self.title('AnieZilla')
-        self.resizable(0, 0)
+        # self.resizable(0, 0)
 
         if DEBUG:
             self.iconbitmap(resource_path(r'assets\AnieZillaIcon.ico'))
@@ -54,11 +56,17 @@ class App(Tk):
         self.rightFootFrame = Frame(self.footFrame)
         self.rightFootFrame.pack(side = 'right')
 
-        self.footLabel = Label(self.leftFootFrame, text = 'v1.1', font = ('Calibri', 8, 'italic'))
+        self.centerFootFrame = Frame(self.footFrame,bg = 'red', width = 10, height = 10)
+        self.centerFootFrame.pack()
+
+        self.footLabel = Label(self.leftFootFrame, text = 'v1.5', font = ('Calibri', 8, 'italic'))
         self.footLabel.pack(side = 'left')
 
         self.percentageLabel = Label(self.rightFootFrame, text = '', font = ('Calibri', 8, 'italic'))
-        self.percentageLabel.pack()
+        self.percentageLabel.pack(side = 'right')
+
+        self.episodeName = Label(self.centerFootFrame, text = '', font = ('Calibri', 8, 'italic'))
+        self.episodeName.pack(anchor = 'e')
 
         self.frames = {}
 
@@ -76,10 +84,6 @@ class App(Tk):
 
         if frame.name == 'AnieZilla - Search':
             self.frames[context].fillAnimeList()
-
-        if frame.name == 'AnieZilla - Upload':
-            self.frames[context].fillListBoxupload()
-            App.flag = True
 
         frame.tkraise()
 
@@ -205,10 +209,10 @@ class searchPage(Frame):
 
         self.parent = parent
 
-        self.label = ttk.Label(self, text = 'Sua lista de animes', font = ('Arial', 12, 'bold'))
+        self.label = ttk.Label(self, text = 'Sua lista de animes', font = ('Calibri', 12, 'italic'))
         self.label.pack(pady = 2)
 
-        self.masterFrame = Frame(self, bd = 1, relief = GROOVE)
+        self.masterFrame = ttk.Frame(self)
         self.masterFrame.pack(pady = 2) 
         
         self.scrollBar = ttk.Scrollbar(self.masterFrame)
@@ -267,76 +271,190 @@ class searchPage(Frame):
    
 class directoryPage(Frame):
 
-    path = ''
-    fileList = []
-    thumbFiles = []
-
     def __init__(self, parent, controller):
         Frame.__init__(self, parent)
         
         self.name = 'AnieZilla - Directory'
         self.parent = parent
         self.controller = controller
+        self.path = ''
+        self.fileList = []
+        self.thumbFiles = []
         self.episodeNumbers = None
 
-        Label(self, text = 'Episódios Selecionados', font = ('Calibri', 12, 'italic')).pack(pady = 2)
-
-        self.masterFrame = ttk.Frame(self, relief = 'groove')
-        self.masterFrame.pack(pady = 2)
-
-        self.scrollBar = ttk.Scrollbar(self.masterFrame)
-        self.scrollBar.pack(side = RIGHT, fill = Y)
-
+        self.label = Label(self, text = 'Episódios Selecionados', font = ('Calibri', 12, 'italic'))
+        self.label.grid(row = 0, column = 5, columnspan = 6)
+     
+        self.masterFrame = ttk.Frame(self)
         self.fileListBox = Listbox(self.masterFrame, height = 13, width = 45, bd = 0)
-        self.fileListBox.pack()
+        self.verticalScrollBar = Scrollbar(self.masterFrame, orient = 'vertical', command = self.fileListBox.yview)
+        self.fileListBox.configure(yscrollcommand = self.verticalScrollBar.set)
 
-        self.scrollBar.config(command = self.fileListBox.yview)
-        self.fileListBox.config(yscrollcommand = self.scrollBar.set)
+        self.masterFrame.grid(row = 1, column = 5, columnspan = 6, rowspan = 3)
+        self.fileListBox.grid(row = 0, column = 0, sticky = 'nesw')
+        self.verticalScrollBar.grid(row = 0, column = 1, sticky = 'ns')
 
-        self.buttonsFrame = Frame(self, width = 30, height = 10)
-        self.buttonsFrame.pack()
+        self.controlButtonsFrame = Frame(self)
+        self.controlButtonsFrame.grid(row = 4, column = 5, columnspan = 6, rowspan = 3)
 
-        self.buttonDirectory = ttk.Button(self.buttonsFrame, text = 'Selecionar Episódios', width = 20, command = lambda: self.openDirectory())
-        self.buttonDirectory.pack(side = LEFT, pady = 5, padx = 1)
+        self.buttonDirectory = ttk.Button(self.controlButtonsFrame, text = 'Selecionar Episódios', width = 22, command = self.openDirectory)
+        self.buttonDirectory.grid(row = 0, column = 0)
 
-        self.buttonBeginUpload = ttk.Button(self.buttonsFrame, text = 'Fazer Upload', width = 20, command = lambda: self.uploadButton(lambda: controller.show_frame(uploadPage)))
-        self.buttonBeginUpload.pack(pady = 5, padx = 1)
-
-        self.frame = Frame(self)
-        self.frame.pack(side = 'bottom', fill = 'x')
+        self.buttonBeginUpload = ttk.Button(self.controlButtonsFrame, text = 'Fazer Upload', width = 22, command = self.uploadButton)
+        self.buttonBeginUpload.grid(row = 0, column = 2)
 
         if DEBUG:
-            self.imgBackButton = PhotoImage(file = resource_path(r'assets\backButton.png'))
+            self.imgBackButton = PhotoImage(file = resource_path(r'assets\backButton1.png'))
+            self.imgPlusButton = PhotoImage(file = resource_path(r'assets\plusButton.png'))
+            self.imgMinusButton = PhotoImage(file = resource_path(r'assets\minusButton.png'))
         else:
-            self.imgBackButton = PhotoImage(file = resource_path(r'backButton.png'))
+            self.imgBackButton = PhotoImage(file = resource_path(r'backButton1.png'))
+            self.imgPlusButton = PhotoImage(file = resource_path(r'plusButton.png'))
+            self.imgMinusButton = PhotoImage(file = resource_path(r'minusButton.png'))
 
+        self.plusMinusButtonsFrame = Frame(self)
+        self.plusMinusButtonsFrame.grid(row = 1, column = 20, rowspan = 3, sticky = 'ns')
 
-        self.backButton = Button(self.frame, image = self.imgBackButton, bd = 0, command = lambda: controller.show_frame(searchPage))
+        self.plusButton = ttk.Button(self.plusMinusButtonsFrame, image = self.imgPlusButton, command = self.plusButtonCommand)
+        self.plusButton.image = self.imgPlusButton
+        self.plusButton.grid(row = 0, column = 0, pady = 1, padx = 1)
+
+        self.minusButton = ttk.Button(self.plusMinusButtonsFrame, image = self.imgMinusButton, command = self.minusButtonCommand)
+        self.minusButton.image = self.imgMinusButton
+        self.minusButton.grid(row = 1, column = 0, pady = 1)
+
+        self.backButton = ttk.Button(self, image = self.imgBackButton, command = lambda: controller.show_frame(searchPage))
         self.backButton.image = self.imgBackButton
-        self.backButton.pack(anchor = 'w')
+        self.backButton.grid(row = 0, column = 0)
 
-    def uploadButton(self, event):
+    def plusButtonCommand(self):
+        """ Handles the plus button command event. """
+        
+        if not self.fileList:
+            messagebox.showerror('AnieZilla', 'Ainda não há episódios selecionados.')
+            return
+        
+        fileName = filedialog.askopenfilename(initialdir = self.path, title = 'Selecione os Episódios', filetypes = [('Arquivos .mp4', '*.mp4')])
 
-        if not directoryPage.fileList:
+        if fileName:
+            
+            selectedPath = '\\'.join(re.split('/', fileName)[:-1]) + os.sep
+
+            if selectedPath != self.path:
+                messagebox.showerror('AnieZilla', 'Selecione um episódio no mesmo diretório dos demais.')
+                return
+
+            name = self.getSingleFileName(fileName, '/')
+            if not re.search(r'\bepisodio-\d+[.]mp4\b', name):
+                messagebox.showerror('AnieZilla', 'O nome do episódio selecionado não está no padrão.')
+                return
+
+            number = self.getSingleFileNumber(fileName, int)
+            if self.episodeNumbers & set({number}):
+                messagebox.showerror('AnieZilla', 'Esse episódio já está na lista.')
+                return
+
+            if os.path.exists(self.path + '\\' + 'img'):
+                
+                thumbPath = self.path + 'img' + os.sep + 'thumb-' + str(number) + '.png'
+                thumb = re.split('\\\\', glob.glob(thumbPath)[0])[-1]
+
+                if thumb:
+                    self.episodeNumbers.add(number)
+                    self.fileList.append(name)
+                    self.thumbFiles.append(thumb)
+
+                    self.fileList.sort(key = len)
+                    self.thumbFiles.sort(key = len)
+
+                    self.fillFileList(self.fileList)
+                else:
+                    messagebox.showerror('AnieZilla', 'Não existe thumb para esse episódio.')
+                    return
+
+            else:
+                messagebox.showerror('AnieZilla', 'A pasta img com as thumbs não existe no diretório dos episódios.')
+                return
+
+    def getSingleFileName(self, fileName, pattern):
+
+        return re.split(pattern, fileName)[-1]
+        
+    def getSingleFileNumber(self, fileName, f):
+
+        return f(re.findall(r'\d+', re.split('/', fileName)[-1])[:-1][0])
+
+    def minusButtonCommand(self):
+
+        try:
+            idx = self.fileListBox.curselection()[0]
+            self.episodeNumbers.remove(int(''.join(re.findall(r'\d+', self.fileList[idx][:-1]))))
+            self.fileList.pop(idx)
+            self.thumbFiles.pop(idx)
+            self.fillFileList(self.fileList)
+        except IndexError:
+            pass
+
+    def clearListBox(self):
+
+        self.fileListBox.delete(0, END)
+        self.fileList = []
+        self.thumbFiles = []
+
+    def uploadButton(self):
+
+        if not self.fileList:
             messagebox.showerror('AnieZilla', 'Não há nada na lista de episódios.')
             return
 
-        self.controller.frames[uploadPage].buttonLock.pack(anchor = 'e')
-        event()
+        try:
 
+            cfg = open(self.path + 'config.cfg', 'r', encoding = 'utf-8')
+
+            self.controller.frames[uploadPage].fillFileList()
+            result = self.controller.frames[uploadPage].cfgLineCount(cfg)
+
+            if result == 1:
+                messagebox.showerror('AnieZilla', 'Há mais arquivos selecionados do que informações disponíveis.')
+                return
+
+            elif not self.episodeNumberVerify(cfg):
+
+                messagebox.showerror('AnieZilla', 'Você está tentando upar episódios para os quais não existem informações.')
+
+                return
+
+        except FileNotFoundError as fnf:
+            messagebox.showerror('AnieZilla', 'Arquivo config.cfg não encontrado.')
+            return
+
+        finally:
+                cfg.close()
+
+        self.controller.frames[uploadPage].buttonLock.pack(anchor = 'e')
+        self.controller.show_frame(uploadPage)
+        self.controller.frames[uploadPage].startThread()
+
+    def episodeNumberVerify(self, cfgFile):
+        """ Verifies if all selected files have an info line in the .cfg file. """
+
+        result = self.episodeNumbers.difference({json.loads(num)['episodio'] for num in cfgFile})
+
+        return True if not result else False
+    
     def openDirectory(self):
-        """ Method handles the file choosing. Making all the necessary treatment. """
+        """ Method handles the file choosing. """
         
         fileNames = filedialog.askopenfilenames(initialdir = os.getcwd(), title = 'Selecione os Episódios', filetypes = [('Arquivos .mp4', '*.mp4')])
 
         if fileNames:
 
-            directoryPage.path = '\\'.join(re.split('/', fileNames[0])[:-1]) + os.sep
-            path = directoryPage.path
+            self.path = '\\'.join(re.split('/', fileNames[0])[:-1]) + os.sep
+            path = self.path
             
             episodeList = []
-            directoryPage.fileList = []
-            directoryPage.thumbFiles = []
+            self.fileList = []
+            self.thumbFiles = []
 
             for name in fileNames:
                 episodeList.append(name)
@@ -345,32 +463,38 @@ class directoryPage(Frame):
                 
                 imgFileList = [i for i in os.listdir(path + '\\' + 'img') if os.path.isfile(path + '\\' + 'img\\' + i)]
                 
-                directoryPage.thumbFiles = imgFileList
-                directoryPage.fileList = self.getFileNames(episodeList)
+                self.thumbFiles = imgFileList
+                self.fileList = self.getFileNames(episodeList)
 
                 if not self.episodeNameVerify():
                     messagebox.showwarning('AnieZilla', 'Um ou mais episódios estão com o nome incorreto.')
-                    directoryPage.fileList = []
-                    directoryPage.thumbFiles = []
+                    
+                    self.fileList = []
+                    self.thumbFiles = []
+
                     return
                 
                 if not self.thumbNameVerify():
                     messagebox.showwarning('AnieZilla', 'Uma ou mais thumbs estão com o nome incorreto.')
-                    directoryPage.fileList = []
-                    directoryPage.thumbFiles = []
+                    
+                    self.fileList = []
+                    self.thumbFiles = []
+
                     return
 
-                self.episodeNumbers = self.getFileNumber(directoryPage.fileList)
+                self.episodeNumbers = self.getFileNumber(self.fileList)
 
-                directoryPage.thumbFiles = [i for i in imgFileList for j in self.episodeNumbers if re.search('\\bthumb-{}[.]png\\b'.format(j), i)]
+                self.thumbFiles = [i for i in imgFileList for j in self.episodeNumbers if re.search('\\bthumb-{}[.]png\\b'.format(j), i)]
 
-                if len(imgFileList) < len(directoryPage.fileList):
-                    messagebox.showwarning('Aniezilla', 'Uma um mais thumbs estão faltando')
-                    directoryPage.fileList = []
-                    directoryPage.thumbFiles = []
+                if len(imgFileList) < len(self.fileList):
+                    messagebox.showwarning('Aniezilla', 'Uma um mais thumbs estão faltando.')
+
+                    self.fileList = []
+                    self.thumbFiles = []
+
                     return
 
-                self.fillFileList(self.getFileNames(episodeList))
+                self.fillFileList(self.fileList)
             
             else:
                 messagebox.showerror('AnieZilla', 'É preciso existir uma pasta img com os arquivos de thumb no diretório dos episódios.')
@@ -378,12 +502,12 @@ class directoryPage(Frame):
     def episodeNameVerify(self):
         """ Method verifies if all the file names are in the pattern. """
 
-        return all([re.search(r'\bepisodio-\d+[.]mp4\b', i) for i in directoryPage.fileList])
+        return all([re.search(r'\bepisodio-\d+[.]mp4\b', i) for i in self.fileList])
 
     def thumbNameVerify(self):
         """ Method verifies if all the file names are in the pattern. """
 
-        return all([re.search(r'\bthumb-\d+[.]png\b', i) for i in directoryPage.thumbFiles])
+        return all([re.search(r'\bthumb-\d+[.]png\b', i) for i in self.thumbFiles])
 
     def getFileNames(self, lst):
 
@@ -406,7 +530,7 @@ class directoryPage(Frame):
     def getFileNumber(self, fileList):
         """ Method extracts the episode number in the file name. """
 
-        numbers = set({})
+        numbers = set()
         for number in fileList:
 
             x = re.findall(r'\d+', number[:-1])
@@ -420,46 +544,78 @@ class uploadPage(Frame):
     def __init__(self, parent, controller, name = 'AnieZilla - Upload'):
         Frame.__init__(self, parent)
 
+        self.path = ''
         self.name = name
+        self.flag = False
         self.parent = parent
         self.tracker = None
         self.controller = controller
         self.fileList = []
         self.thumbList = []
+        self.listBoxNames = []
+        self.episodeNumbers = set()
+        self.configFile = None
+        self.tmpConfigFile = None
 
-        self.masterFrame = ttk.Frame(self , relief = GROOVE)
-        self.masterFrame.pack(pady = 2)
+        self.label = Label(self, text = 'Fila de Uploads', font = ('Calibri', 12, 'italic'))
+        self.label.grid(row = 0, column = 5, columnspan = 6)
 
-        self.scrollBar = ttk.Scrollbar(self.masterFrame)
-        self.scrollBar.pack(side = RIGHT, fill = Y)
-
+        self.masterFrame = ttk.Frame(self)
         self.uploadListBox = Listbox(self.masterFrame, height = 13, width = 45, bd = 0)
-        self.uploadListBox.pack()
+        self.verticalScrollBar = Scrollbar(self.masterFrame, orient = 'vertical', command = self.uploadListBox.yview)
+        self.uploadListBox.configure(yscrollcommand = self.verticalScrollBar.set)
 
-        self.scrollBar.config(command = self.uploadListBox.yview)
-        self.uploadListBox.config(yscrollcommand = self.scrollBar.set)
+        self.masterFrame.grid(row = 1, column = 5, columnspan = 6, rowspan = 3)
+        self.uploadListBox.grid(row = 0, column = 0, sticky = 'nesw')
+        self.verticalScrollBar.grid(row = 0, column = 1, sticky = 'ns')
 
-        self.buttonFrame = Frame(self)
-        self.buttonFrame.pack()
+        self.controlButtonsFrame = ttk.Frame(self)
+        self.controlButtonsFrame.grid(row = 4, column = 5, columnspan = 6, rowspan = 3)
 
-        self.uploadButton = ttk.Button(self.buttonFrame, text = 'Iniciar upload', width = 20, command = self.startThread)
-        self.uploadButton.pack(side = LEFT, padx = 2)
+        self.stopUploadButton = ttk.Button(self.controlButtonsFrame, text = 'Parar Upload', width = 23)
+        self.stopUploadButton.grid(row = 0, column = 0)
 
-        self.pauseUploadButton = ttk.Button(self.buttonFrame, text = 'Pausar Upload', state = DISABLED, width = 20, command = self.startThread)
-        self.pauseUploadButton.pack(padx = 2)
-
-        self.frame = Frame(self)
-        self.frame.pack(side = 'bottom', fill = 'x')
+        self.pauseUploadButton = ttk.Button(self.controlButtonsFrame, text = 'Pausar upload', width = 23)
+        self.pauseUploadButton.grid(row = 0, column = 2)
 
         if DEBUG:
-            self.imgBackButton = PhotoImage(file = resource_path(r'assets\backButton.png'))
+            self.imgUpButton = PhotoImage(file = resource_path(r'assets\upButton.png'))
+            self.imgDownButton = PhotoImage(file = resource_path(r'assets\downButton.png'))
+            self.imgPlusButton = PhotoImage(file = resource_path(r'assets\plusButton.png'))
+            self.imgMinusButton = PhotoImage(file = resource_path(r'assets\minusButton.png'))
+            self.imgBackButton = PhotoImage(file = resource_path(r'assets\backButton1.png'))
         else:
-            self.imgBackButton = PhotoImage(file = resource_path(r'backButton.png'))
+            self.imgUpButton = PhotoImage(file = resource_path(r'upButton.png'))
+            self.imgDownButton = PhotoImage(file = resource_path(r'downButton.png'))
+            self.imgPlusButton = PhotoImage(file = resource_path(r'plusButton.png'))
+            self.imgMinusButton = PhotoImage(file = resource_path(r'minusButton.png'))
+            self.imgBackButton = PhotoImage(file = resource_path(r'backButton1.png'))
 
+        self.queueButtonsControlFrame = ttk.Frame(self)
+        self.queueButtonsControlFrame.grid(row = 1, column = 20, rowspan = 3 , sticky = 'ns')
 
-        self.backButton = Button(self.frame, image = self.imgBackButton, bd = 0, command = self.backButtonCommand)
+        self.plusButton = ttk.Button(self.queueButtonsControlFrame, image = self.imgPlusButton)
+        self.plusButton.image = self.imgPlusButton
+        self.plusButton.grid(row = 0, column = 0, pady = 1, padx = 1)
+
+        self.minusButton = ttk.Button(self.queueButtonsControlFrame, image = self.imgMinusButton)
+        self.minusButton.image = self.imgMinusButton
+        self.minusButton.grid(row = 1, column = 0, pady = 1)
+
+        self.upButton = ttk.Button(self.queueButtonsControlFrame, image = self.imgUpButton)
+        self.upButton.image = self.imgUpButton
+        self.upButton.grid(row = 2, column = 0, pady = 1, padx = 1)
+
+        self.downButton = ttk.Button(self.queueButtonsControlFrame, image = self.imgDownButton)
+        self.downButton.image = self.imgDownButton
+        self.downButton.grid(row = 3, column = 0, pady = 1)
+
+        self.progressBarFrame = ttk.Frame(self)
+        self.progressBarFrame.grid(row = 8, column = 5, columnspan = 6)
+
+        self.backButton = ttk.Button(self, image = self.imgBackButton, command = self.backButtonCommand)
         self.backButton.image = self.imgBackButton
-        self.backButton.pack(anchor = 'w')
+        self.backButton.grid(row = 0, column = 0)
 
         if DEBUG:
             self.imgLockerClosed = PhotoImage(file = resource_path(r'assets\padlockClosed.png'))
@@ -468,7 +624,7 @@ class uploadPage(Frame):
             self.imgLockerClosed = PhotoImage(file = resource_path(r'padlockClosed.png'))
             self.imgLockerOpen = PhotoImage(file = resource_path(r'padlockOpen.png'))
 
-        self.buttonLock = Button(controller.lockerFrame, image = self.imgLockerOpen, bd = 0, state = 'disabled', command = self.changeImage)
+        self.buttonLock = Button(controller.lockerFrame, image = self.imgLockerOpen, bd = 0, command = self.lockButtons)
         self.buttonLock.image = self.imgLockerOpen
 
     def backButtonCommand(self):
@@ -476,18 +632,32 @@ class uploadPage(Frame):
         
         self.buttonLock.pack_forget()
         self.controller.show_frame(directoryPage)
+        self.uploadListBox.delete(0, END)
+        self.controller.episodeName['text'] = ''
 
-    def changeImageBack(self):
+    def UnlockButtons(self):
         """ Handles a command of the locker button when it's closed. """
 
         self.buttonLock['image'] = self.imgLockerOpen
-        self.buttonLock['command'] = self.changeImage
+        self.stopUploadButton['state'] = 'able'
+        self.pauseUploadButton['state'] = 'able'
+        self.plusButton['state'] = 'able'
+        self.minusButton['state'] = 'able'
+        self.upButton['state'] = 'able'
+        self.downButton['state'] = 'able'
+        self.buttonLock['command'] = self.lockButtons
 
-    def changeImage(self):
+    def lockButtons(self):
         """ Handles a coomand of the locker button when it's open. """
 
         self.buttonLock['image'] = self.imgLockerClosed
-        self.buttonLock['command'] = self.changeImageBack
+        self.stopUploadButton['state'] = 'disabled'
+        self.pauseUploadButton['state'] = 'disabled'
+        self.plusButton['state'] = 'disabled'
+        self.minusButton['state'] = 'disabled'
+        self.upButton['state'] = 'disabled'
+        self.downButton['state'] = 'disabled'
+        self.buttonLock['command'] = self.UnlockButtons
 
     def startThread(self):
         """ Method starts a thread in which the upload module is going to run. """
@@ -498,77 +668,69 @@ class uploadPage(Frame):
 
     def f(self):
 
-        flag = False
-        path = directoryPage.path
-        
-        self.uploadButton['state'] = 'disabled'
+        self.flag = False
         self.backButton['state'] = 'disabled'
-        self.uploadButton['state'] = 'disabled'
+        self.path = self.controller.frames[directoryPage].path
+        self.episodeNumbers = self.controller.frames[directoryPage].episodeNumbers
 
-        if not self.fileList:
-            messagebox.showerror('AnieZilla', 'A lista de upload está vazia!')
-            self._activateButtons()
-            return
-        
         try:
 
-            _configFile = open(path + 'config.cfg', 'r+', encoding = 'utf-8')        
+            self.configFile = open(self.path + 'config.cfg', 'r+', encoding = 'utf-8')        
 
         except FileNotFoundError:
             messagebox.showerror('AnieZilla', 'Arquivo config.cfg não encontrado.')
-            self._activateButtons()
+            self.backButton['state'] = 'normal'
             return
 
-        result = self.cfgLineCount(_configFile)
-
-        if result == 1:
-            messagebox.showerror('AnieZilla', 'Há mais arquivos selecionados do que informações disponíveis.')
-            _configFile.close()
-            self._activateButtons()
-            return
-        else:
-
-            if not self.episodeNumberVerify(_configFile):
-                messagebox.showerror('AnieZilla', 'Você está tentando upar episódios para os quais não existem informações.')
-                _configFile.close()
-                self._activateButtons()
-                return
-
-            if result == -1:
-                
-                flag = True
-                self.cfgSelectEntry(path, _configFile)
-                _tmpConfigFile = open(path + 'config.tmp', 'r+', encoding = 'utf-8')
-
-        self.thumbList.sort(key = len)
-        for video, thumb in zip(self.fileList, self.thumbList):
+        result = self.cfgLineCount(self.configFile)
+        
+        if result == -1:
             
+            self.flag = True
+            self.cfgSelectEntry(self.path, self.configFile)
+            self.tmpConfigFile = open(self.path + 'config.tmp', 'r+', encoding = 'utf-8')
+
+        if self.flag == True:
+            self.fillListBoxUpload(self.tmpConfigFile)
+        else:
+            self.fillListBoxUpload(self.configFile)
+
+        names = self.listBoxNames
+        self.thumbList.sort(key = len)
+        for video, thumb, name in zip(self.fileList, self.thumbList, names):
+            
+            name[1] = PROCESSING
+            self.updateListBoxUpload()
+
+            sleep(5)
+
             try:
 
-                _videoFile = open(path + video[0], 'rb')
-                _thumbFile = open(path + 'img\\' + thumb, 'rb')
+                _videoFile = open(self.path + video, 'rb')
+                _thumbFile = open(self.path + 'img\\' + thumb, 'rb')
 
             except FileNotFoundError as fnf:
                 messagebox.showerror('AnieZilla', fnf)
 
-                if flag == True:
-                    _configFile.close()
-                    _tmpConfigFile.close()
+                if self.flag == True:
+                    self.configFile.close()
+                    self.tmpConfigFile.close()
                     os.remove(path + 'config.tmp')
                 else:
-                    _configFile.close()
+                    self.configFile.close()
 
-                self._activateButtons()
+                self.backButton['state'] = 'normal'
+                self.controller.frames[directoryPage].clearListBox()
 
                 return
 
             animeId = searchPage.animeId[searchPage.selectedItem][0]
             animePath = searchPage.animeId[searchPage.selectedItem][1] + '/'
 
-            if flag == True:
-                episodeJson = json.loads(_tmpConfigFile.readline())
+            if self.flag == True:
+                episodeJson = json.loads(self.tmpConfigFile.readline())
             else:
-                episodeJson = json.loads(_configFile.readline())
+                episodeJson = json.loads(self.configFile.readline())
 
             episode = Episode(loginPage.userId, animeId, animePath, video[0], episodeJson)
 
@@ -579,87 +741,99 @@ class uploadPage(Frame):
                     _thumbFile.close()
                     _videoFile.close()
 
-                    if flag == True:
-                        _configFile.close()
-                        _tmpConfigFile.close()
-                        os.remove(path + 'config.tmp')
+                    if self.flag == True:
+                        self.configFile.close()
+                        self.tmpConfigFile.close()
+                        os.remove(self.path + 'config.tmp')
                     else:
-                        _configFile.close()
+                        self.configFile.close()
 
-                    self._activateButtons()
+                    self.backButton['state'] = 'normal'
 
                     return
 
             except Exception as exe:
                 messagebox.showerror('AnieZilla', exe)
+
                 self.backButton['state'] = 'normal'
+                self.controller.frames[directoryPage].clearListBox()
+
                 return
 
             try:
 
                 if db.isRepeated(episode) != None:
-                    video[2] = True
+                    name[1] = REPEATED
                     _videoFile.close()
                     _thumbFile.close()
 
-                    if flag == True:
-                        self.eraseUploadedLine(_configFile, episodeJson)
-                        self.eraseUploadedLine(_tmpConfigFile, episodeJson)
+                    if self.flag == True:
+                        self.eraseUploadedLine(self.configFile, episodeJson)
+                        self.eraseUploadedLine(self.tmpConfigFile, episodeJson)
                     else:
-                        self.eraseUploadedLine(_configFile, episodeJson)
+                        self.eraseUploadedLine(self.configFile, episodeJson)
 
                     self.updateListBoxUpload()
                     continue
 
             except Exception as exe:
                 messagebox.showerror('AnieZilla', exe)
+
                 _thumbFile.close()
                 _videoFile.close()
-                self._activateButtons()
 
                 continue
 
-            maxbytes = int(os.path.getsize(path + video[0]))
+            maxbytes = int(os.path.getsize(self.path + video))
             start_time = datetime.now()
 
             try:
                 
                 ftp = FTP('ftp.anieclipse.tk', 'anieclipse3', 'StarBugs#029')
 
-                self.tracker = progressBar(self, self.controller, maxbytes, start_time, ftp)
+                self.tracker = progressBar(self.progressBarFrame, self.controller, maxbytes, start_time, ftp)
                 self.controller.percentageLabel['text'] = '0% - 0 Kbps'
+                self.controller.episodeName['text'] = name[0][:30] + '...' if len(name[0]) > 30 else name[0]
+
+                # sleep(5)
+                # var = input()
+                # return
 
                 serverPath = '/public_html/' + animePath + video[0]
                 self.tracker.timeBegin = datetime.now()
-                ftp.storbinary('STOR ' + serverPath, _videoFile, 20000, self.tracker.updateProgress)
+                # ftp.storbinary('STOR ' + serverPath, _videoFile, 20000, self.tracker.updateProgress)
                 
                 serverPath = '/public_html/' + animePath + 'img/' + thumb
-                ftp.storbinary('STOR ' + serverPath, _thumbFile)
+                # ftp.storbinary('STOR ' + serverPath, _thumbFile)
 
-                video[1] = True
+                name[1] = FINISHED
 
                 if not db.isRepeated(episode):
                     if db.isLast(episode) == True:
-                        db.insertAndUpdate(episode)
+                        pass
+                        # db.insertAndUpdate(episode)
                     else:
-                        db.insertEpisode(episode)
+                        pass
+                        # db.insertEpisode(episode)
 
-                if flag == True:
-                    self.eraseUploadedLine(_configFile, episodeJson)
-                    self.eraseUploadedLine(_tmpConfigFile, episodeJson)
+                if self.flag == True:
+                    self.eraseUploadedLine(self.configFile, episodeJson)
+                    self.eraseUploadedLine(self.tmpConfigFile, episodeJson)
                 else:
-                    self.eraseUploadedLine(_configFile, episodeJson)
+                    self.eraseUploadedLine(self.configFile, episodeJson)
 
             except Exception as ce:
                 messagebox.showerror('AnieZilla', ce)
-                if flag == True:
-                    _configFile.close()
-                    _tmpConfigFile.close()
+
+                if self.flag == True:
+                    self.configFile.close()
+                    self.tmpConfigFile.close()
                     os.remove(path + 'config.tmp')
                 else:
-                    _configFile.close()
+                    self.configFile.close()
 
-                self._activateButtons()
+                self.backButton['state'] = 'normal'
+                self.controller.frames[directoryPage].clearListBox()
 
                 return
 
@@ -668,8 +842,8 @@ class uploadPage(Frame):
                 _videoFile.close()
                 _thumbFile.close()
 
-                if flag == True and not _tmpConfigFile.closed:
-                    self.updateCfgFile(_tmpConfigFile, _configFile)
+                if self.flag == True and not self.tmpConfigFile.closed:
+                    self.updateCfgFile(self.tmpConfigFile, self.configFile)
 
                 if self.tracker != None:
                     self.tracker.progress.destroy()
@@ -678,24 +852,19 @@ class uploadPage(Frame):
 
             self.updateListBoxUpload()
 
-        if self.cfgLineCount(_configFile) == 2:
-            _configFile.close()
-            os.remove(path + 'config.cfg')
+        if self.cfgLineCount(self.configFile) == 2:
+            self.configFile.close()
+            os.remove(self.path + 'config.cfg')
         else:
-            _configFile.close()
+            self.configFile.close()
 
-        if flag == True and not _tmpConfigFile.closed:
-            _tmpConfigFile.close()
-            os.remove(path + 'config.tmp')
+        if self.flag == True and not self.tmpConfigFile.closed:
+            self.tmpConfigFile.close()
+            os.remove(self.path + 'config.tmp')
 
         messagebox.showinfo('AnieZilla', 'Todos os uploads terminaram!')
-        self._activateButtons()
-
-    def _activateButtons(self):
-
         self.backButton['state'] = 'normal'
-        self.uploadButton['text'] = 'Iinicar Upload'
-        self.uploadButton['state'] = 'able'
+        self.controller.frames[directoryPage].clearListBox()
 
     def cfgSelectEntry(self, path, cfgFile):
         """ Method chooses the right lines of info in the .cfg file for the episodes selected. """
@@ -743,22 +912,6 @@ class uploadPage(Frame):
         cfgFile.truncate()
         cfgFile.seek(0)
 
-    def episodeNumberVerify(self, cfgFile):
-        """ Method verifies if the numbers of the episodes in the .cfg file info are equal as the selected files. """
-
-        episodeNumbers = self.controller.frames[directoryPage].episodeNumbers
-
-        for line in cfgFile:
-
-            x = json.loads(line)
-
-            if x['episodio'] not in episodeNumbers:
-                return False
-
-        cfgFile.seek(0)
-
-        return True
-
     def cfgLineCount(self, cfgFile):
         """ Method count the number of lines in the .cfg file. """
         
@@ -789,27 +942,125 @@ class uploadPage(Frame):
         """ Method updates the Listbox of the progress on de episodes uploads. """
 
         self.uploadListBox.delete(0, END)
-        for i in self.fileList:
-            if i[1] == True:
-                self.uploadListBox.insert(END, i[0] + ' ...Terminado.')
-            elif i[2] == True:
-                self.uploadListBox.insert(END, i[0] + ' ...Repetido, não upado.')
-            else:
-                self.uploadListBox.insert(END, i[0])
 
-    def fillListBoxupload(self):
+        for idx, name in enumerate(self.listBoxNames):
+            if name[1] == FINISHED:
+                self.uploadListBox.insert(END, str(idx + 1) + ': ' + name[0] + '\t\t -> Terminado')
+                self.uploadListBox.itemconfig(idx, foreground = 'green')
+            elif name[1] == PROCESSING:
+                self.uploadListBox.insert(END, str(idx + 1) + ': ' + name[0] + '\t\t -> Upando...')
+                self.uploadListBox.itemconfig(idx, foreground = 'orange')
+            elif name[1] == REPEATED:
+                self.uploadListBox.insert(END, str(idx + 1) + ': ' + name[0] + '\t\t -> Repetido, não upado')
+                self.uploadListBox.itemconfig(idx, foreground = 'purple')
+            elif name[1] == ERROR:
+                self.uploadListBox.insert(END, str(idx + 1) + ': ' + name[0] + '\t\t -> Erro no upload.')
+                self.uploadListBox.itemconfig(idx, foreground = 'red')
+            else:
+                self.uploadListBox.insert(END, str(idx + 1) + ': ' + name[0])
+    
+    def fillFileList(self):
         """ Method fills the Listbox with the selected episodes for upload. """
 
         self.fileList = []
         self.thumbList = []
-        for i, j in zip(directoryPage.fileList, directoryPage.thumbFiles):
-            self.fileList.append([i, False, False])
-            self.thumbList.append(j)
 
-        self.uploadListBox.delete(0, END)
+        fileList = self.controller.frames[directoryPage].fileList
+        thumbFiles = self.controller.frames[directoryPage].thumbFiles
 
-        for i in self.fileList:
-            self.uploadListBox.insert(END, i[0])
+        for file, thumb in zip(fileList, thumbFiles):
+            self.fileList.append(file)
+            self.thumbList.append(thumb)
+
+    def fillListBoxUpload(self, cfgFile):
+
+        self.listBoxNames = []
+
+        for num, line in enumerate(cfgFile, 1):
+
+            x = json.loads(line)
+            self.listBoxNames.append([x['nome'], QUEUED])
+            self.uploadListBox.insert(END, str(num) + ': ' + self.listBoxNames[-1][0])
+
+        cfgFile.seek(0)
+
+    def plusButtonCommand(self):
+
+        if self.overUpload():
+            messagebox.showerror('AnieZilla', 'Não é possível adicionar episódio, upload já terminou.')
+            return
+
+        if self.flag:
+            messagebox.showerror('AnieZilla', 'Não existe informação no arquivo cfg para esse episódio.')
+            return
+
+        fileName = filedialog.askopenfilename(initialdir = self.path, title = 'Selecione os Episódios', filetypes = [('Arquivos .mp4', '*.mp4')])
+
+        if fileName:
+
+            selectedPath = '\\'.join(re.split('/', fileName)[:-1]) + os.sep
+
+            if selectedPath != self.path:
+                messabox.showerror('AnieZilla', 'Selecione um episódio no mesmo diretório dos demais.')
+                return
+
+            name = self.controller.frames[directoryPage].getSingleFileName(fileName, '/')
+            if not re.search(r'\bepisodio-\d+[.]mp4\b', name):
+                messagebox.showerror('AnieZilla', 'O nome do episódio selecionado não está no padrão.')
+                return
+            
+            number = self.controller.frames[directoryPage].getSingleFileNumber(fileName, int)
+            if self.episodeNumbers & set({number}):
+                messagebox.showerror('AnieZilla', 'Esse episódio já está na lista.')
+                return
+            
+            if not self.hasCfgInfo(self.configFile):
+                messagebox.showerror('AnieZilla', 'Não existe informação no arquivo cfg para esse episódio.')
+                return
+
+            if os.path.exists(self.path + '\\' + 'img'):
+
+                thumbPath = self.path + 'img' + os.sep + 'thumb-' + str(number) + 'png'
+                thumb = re.split('\\\\', glob.blog(thumbPath)[0])[-1]
+
+                if thumb:
+                    self.episodeNumbers.add(number)
+                    self.fileList.append([name, QUEUED])
+                    self.thumbList.append(thumb)
+
+                    self.updateListBoxUpload()
+                
+                else:
+                    messagebox.showerror('AnieZilla', 'Não existe thumb para esse episódio.')
+                    return
+            
+            else:
+                messagebox.showerror('AnieZilla', 'A pasta img com as thumbs não existe no diretório do episódio.')
+                return
+
+    def getIdxListBoxSelected(self):
+
+        try:
+
+            idx = self.fillListBoxUpload.curselection()[0]
+
+        except IndexError:
+            pass
+            
+        return idx
+
+    def hasCfgInfo(self, cfgFile):
+
+        function = self.controller.frames[directoryPage].episodeNumberVerify
+
+        result = function(cfgFile)
+        cfgFile.seek(0)
+
+        return result
+
+    def overUpload(self):
+
+        return all([i for i in self.listBoxNames True if i[1] == FINISHED else False]) 
 
 def main():
 
