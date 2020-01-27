@@ -13,7 +13,7 @@ from time import sleep
 
 db = Database()
 
-DEBUG = True
+DEBUG = False
 
 def resource_path(relative_path):
     
@@ -30,7 +30,7 @@ class App(Tk):
         Tk.__init__(self, *args, **kwargs)
 
         self.title('AnieZilla')
-        # self.resizable(0, 0)
+        self.resizable(0, 0)
 
         if DEBUG:
             self.iconbitmap(resource_path(r'assets\AnieZillaIcon.ico'))
@@ -44,22 +44,22 @@ class App(Tk):
         self.container.grid_rowconfigure(0, weight = 1)
         self.container.grid_columnconfigure(0, weight = 1)
 
-        self.footFrame = Frame(self, width = 40, height = 32)
+        self.footFrame = Frame(self)
         self.footFrame.pack(side = 'bottom', fill = 'both')
         
-        self.leftFootFrame = Frame(self.footFrame, width = 10, height = 30)
+        self.leftFootFrame = Frame(self.footFrame)
         self.leftFootFrame.pack(side = 'left')
 
-        self.lockerFrame = Frame(self.footFrame, width = 20, height = 22)
+        self.lockerFrame = Frame(self.footFrame)
         self.lockerFrame.pack(side = 'right')
 
         self.rightFootFrame = Frame(self.footFrame)
         self.rightFootFrame.pack(side = 'right')
 
-        self.centerFootFrame = Frame(self.footFrame,bg = 'red', width = 10, height = 10)
+        self.centerFootFrame = Frame(self.footFrame,bg = 'red')
         self.centerFootFrame.pack()
 
-        self.footLabel = Label(self.leftFootFrame, text = 'v1.5', font = ('Calibri', 8, 'italic'))
+        self.footLabel = Label(self.leftFootFrame, text = '1.1.11', font = ('Calibri', 8, 'italic'))
         self.footLabel.pack(side = 'left')
 
         self.percentageLabel = Label(self.rightFootFrame, text = '', font = ('Calibri', 8, 'italic'))
@@ -702,8 +702,6 @@ class uploadPage(Frame):
             name[1] = PROCESSING
             self.updateListBoxUpload()
 
-            sleep(5)
-
             try:
 
                 _videoFile = open(self.path + video, 'rb')
@@ -732,7 +730,7 @@ class uploadPage(Frame):
             else:
                 episodeJson = json.loads(self.configFile.readline())
 
-            episode = Episode(loginPage.userId, animeId, animePath, video[0], episodeJson)
+            episode = Episode(loginPage.userId, animeId, animePath, video, episodeJson)
 
             try:
                 
@@ -795,26 +793,20 @@ class uploadPage(Frame):
                 self.controller.percentageLabel['text'] = '0% - 0 Kbps'
                 self.controller.episodeName['text'] = name[0][:30] + '...' if len(name[0]) > 30 else name[0]
 
-                # sleep(5)
-                # var = input()
-                # return
-
-                serverPath = '/public_html/' + animePath + video[0]
+                serverPath = '/public_html/' + animePath + video
                 self.tracker.timeBegin = datetime.now()
-                # ftp.storbinary('STOR ' + serverPath, _videoFile, 20000, self.tracker.updateProgress)
+                ftp.storbinary('STOR ' + serverPath, _videoFile, 20000, self.tracker.updateProgress)
                 
                 serverPath = '/public_html/' + animePath + 'img/' + thumb
-                # ftp.storbinary('STOR ' + serverPath, _thumbFile)
+                ftp.storbinary('STOR ' + serverPath, _thumbFile)
 
                 name[1] = FINISHED
 
                 if not db.isRepeated(episode):
                     if db.isLast(episode) == True:
-                        pass
-                        # db.insertAndUpdate(episode)
+                        db.insertAndUpdate(episode)
                     else:
-                        pass
-                        # db.insertEpisode(episode)
+                        db.insertEpisode(episode)
 
                 if self.flag == True:
                     self.eraseUploadedLine(self.configFile, episodeJson)
@@ -945,19 +937,19 @@ class uploadPage(Frame):
 
         for idx, name in enumerate(self.listBoxNames):
             if name[1] == FINISHED:
-                self.uploadListBox.insert(END, str(idx + 1) + ': ' + name[0] + '\t\t -> Terminado')
+                self.uploadListBox.insert(END, str(name[2]) + ': ' + name[0] + '\t\t -> Terminado')
                 self.uploadListBox.itemconfig(idx, foreground = 'green')
             elif name[1] == PROCESSING:
-                self.uploadListBox.insert(END, str(idx + 1) + ': ' + name[0] + '\t\t -> Upando...')
+                self.uploadListBox.insert(END, str(name[2]) + ': ' + name[0] + '\t\t -> Upando...')
                 self.uploadListBox.itemconfig(idx, foreground = 'orange')
             elif name[1] == REPEATED:
-                self.uploadListBox.insert(END, str(idx + 1) + ': ' + name[0] + '\t\t -> Repetido, não upado')
+                self.uploadListBox.insert(END, str(name[2]) + ': ' + name[0] + '\t\t -> Repetido, não upado')
                 self.uploadListBox.itemconfig(idx, foreground = 'purple')
             elif name[1] == ERROR:
-                self.uploadListBox.insert(END, str(idx + 1) + ': ' + name[0] + '\t\t -> Erro no upload.')
+                self.uploadListBox.insert(END, str(name[2]) + ': ' + name[0] + '\t\t -> Erro no upload.')
                 self.uploadListBox.itemconfig(idx, foreground = 'red')
             else:
-                self.uploadListBox.insert(END, str(idx + 1) + ': ' + name[0])
+                self.uploadListBox.insert(END, str(name[2]) + ': ' + name[0])
     
     def fillFileList(self):
         """ Method fills the Listbox with the selected episodes for upload. """
@@ -976,11 +968,11 @@ class uploadPage(Frame):
 
         self.listBoxNames = []
 
-        for num, line in enumerate(cfgFile, 1):
+        for line in cfgFile:
 
             x = json.loads(line)
-            self.listBoxNames.append([x['nome'], QUEUED])
-            self.uploadListBox.insert(END, str(num) + ': ' + self.listBoxNames[-1][0])
+            self.listBoxNames.append([x['nome'], QUEUED, x['episodio']])
+            self.uploadListBox.insert(END, str(self.listBoxNames[-1][2]) + ': ' + self.listBoxNames[-1][0])
 
         cfgFile.seek(0)
 
@@ -991,7 +983,7 @@ class uploadPage(Frame):
             return
 
         if self.flag:
-            messagebox.showerror('AnieZilla', 'Não existe informação no arquivo cfg para esse episódio.')
+            messagebox.showerror('AnieZilla', 'Não existe informação no arquivo .cfg para esse episódio.')
             return
 
         fileName = filedialog.askopenfilename(initialdir = self.path, title = 'Selecione os Episódios', filetypes = [('Arquivos .mp4', '*.mp4')])
@@ -1038,6 +1030,7 @@ class uploadPage(Frame):
                 messagebox.showerror('AnieZilla', 'A pasta img com as thumbs não existe no diretório do episódio.')
                 return
 
+    # Verificar função
     def getIdxListBoxSelected(self):
 
         try:
@@ -1060,7 +1053,7 @@ class uploadPage(Frame):
 
     def overUpload(self):
 
-        return all([i for i in self.listBoxNames True if i[1] == FINISHED else False]) 
+        return all([True if i[1] == FINISHED else False for i in self.listBoxNames]) 
 
 def main():
 
