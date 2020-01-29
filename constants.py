@@ -23,6 +23,9 @@ def timestamp():
 """ Constants for the upload process """
 FINISHED = 0
 REPEATED = 1
-ERROR = 3
-PROCESSING = 4
-QUEUED = 5
+ERROR = 2
+PROCESSING = 3
+QUEUED = 4
+
+UPDATE_UPLOAD_LIST_STRING = ['\t\t - > Terminado.', '\t\t -> Repetido, não upado.', '\t\t -> Erro no upload.', '\t\t -> Upando...']
+UPDATE_UPLOAD_LIST_COLOR = ['green', 'purple', 'red', 'orange']
