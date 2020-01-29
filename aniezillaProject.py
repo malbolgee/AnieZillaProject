@@ -553,6 +553,7 @@ class uploadPage(Frame):
         self.fileList = []
         self.thumbList = []
         self.listBoxNames = []
+        self.listboxUploadFunctionList = None
         self.episodeNumbers = set()
         self.configFile = None
         self.tmpConfigFile = None
@@ -940,19 +941,10 @@ class uploadPage(Frame):
         name = self.listBoxNames[idx]
         self.uploadListBox.delete(idx, idx)
         
-        if name[1] == FINISHED:
-            self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0] + '\t\t -> Terminado')
-            self.uploadListBox.itemconfig(idx, foreground = 'green')
-        elif name[1] == PROCESSING:
-            self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0] + '\t\t -> Upando...')
-            self.uploadListBox.itemconfig(idx, foreground = 'orange')
-        elif name[1] == REPEATED:
-            self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0] + '\t\t -> Repetido, não upado')
-            self.uploadListBox.itemconfig(idx, foreground = 'purple')
-        elif name[1] == ERROR:
-            self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0] + '\t\t -> Erro no upload.')
-            self.uploadListBox.itemconfig(idx, foreground = 'red')
-        else:
+        try:
+            self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0] + UPDATE_UPLOAD_LIST_STRING[name[1]])
+            self.uploadListBox.itemconfig(idx, foreground = UPDATE_UPLOAD_LIST_COLOR[name[1]])
+        except IndexError:
             self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0])
     
     def fillFileList(self):
@@ -977,7 +969,7 @@ class uploadPage(Frame):
             x = json.loads(line)
             self.listBoxNames.append([x['nome'], QUEUED, x['episodio']])
             self.uploadListBox.insert(END, str(self.listBoxNames[-1][2]) + ': ' + self.listBoxNames[-1][0])
-
+            
         cfgFile.seek(0)
 
     def plusButtonCommand(self):
