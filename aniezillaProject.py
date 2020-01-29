@@ -13,7 +13,7 @@ from time import sleep
 
 db = Database()
 
-DEBUG = False
+DEBUG = True
 
 def resource_path(relative_path):
     
@@ -484,7 +484,7 @@ class directoryPage(Frame):
 
                 self.episodeNumbers = self.getFileNumber(self.fileList)
 
-                self.thumbFiles = [i for i in imgFileList for j in self.episodeNumbers if re.search('\\bthumb-{}[.]png\\b'.format(j), i)]
+                self.thumbFiles = [i for i in imgFileList for j in self.episodeNumbers if re.search(r'\bthumb-{}[.]png\b'.format(j), i)]
 
                 if len(imgFileList) < len(self.fileList):
                     messagebox.showwarning('Aniezilla', 'Uma um mais thumbs estão faltando.')
@@ -695,13 +695,16 @@ class uploadPage(Frame):
         else:
             self.fillListBoxUpload(self.configFile)
 
+        idx = -1
         names = self.listBoxNames
         self.thumbList.sort(key = len)
-        for video, thumb, name in zip(self.fileList, self.thumbList, names):
-            
-            name[1] = PROCESSING
-            self.updateListBoxUpload()
 
+        for video, thumb, name in zip(self.fileList, self.thumbList, names):
+        
+            idx += 1
+            name[1] = PROCESSING
+            self.updateListBoxUpload(idx)
+    
             try:
 
                 _videoFile = open(self.path + video, 'rb')
@@ -771,7 +774,7 @@ class uploadPage(Frame):
                     else:
                         self.eraseUploadedLine(self.configFile, episodeJson)
 
-                    self.updateListBoxUpload()
+                    self.updateListBoxUpload(idx)
                     continue
 
             except Exception as exe:
@@ -795,18 +798,19 @@ class uploadPage(Frame):
 
                 serverPath = '/public_html/' + animePath + video
                 self.tracker.timeBegin = datetime.now()
-                ftp.storbinary('STOR ' + serverPath, _videoFile, 20000, self.tracker.updateProgress)
+                # ftp.storbinary('STOR ' + serverPath, _videoFile, 20000, self.tracker.updateProgress)
                 
                 serverPath = '/public_html/' + animePath + 'img/' + thumb
-                ftp.storbinary('STOR ' + serverPath, _thumbFile)
-
+                # ftp.storbinary('STOR ' + serverPath, _thumbFile)
+                
+                sleep(5)
                 name[1] = FINISHED
 
-                if not db.isRepeated(episode):
-                    if db.isLast(episode) == True:
-                        db.insertAndUpdate(episode)
-                    else:
-                        db.insertEpisode(episode)
+                # if not db.isRepeated(episode):
+                #     if db.isLast(episode) == False:
+                #         db.insertEpisode(episode)
+                #     else:
+                #         db.insertAndUpdate(episode)
 
                 if self.flag == True:
                     self.eraseUploadedLine(self.configFile, episodeJson)
@@ -842,7 +846,7 @@ class uploadPage(Frame):
 
                 ftp.quit()
 
-            self.updateListBoxUpload()
+            self.updateListBoxUpload(idx)
 
         if self.cfgLineCount(self.configFile) == 2:
             self.configFile.close()
@@ -930,26 +934,26 @@ class uploadPage(Frame):
     def pauseUpload(self):
         ...
 
-    def updateListBoxUpload(self):
+    def updateListBoxUpload(self, idx):
         """ Method updates the Listbox of the progress on de episodes uploads. """
 
-        self.uploadListBox.delete(0, END)
-
-        for idx, name in enumerate(self.listBoxNames):
-            if name[1] == FINISHED:
-                self.uploadListBox.insert(END, str(name[2]) + ': ' + name[0] + '\t\t -> Terminado')
-                self.uploadListBox.itemconfig(idx, foreground = 'green')
-            elif name[1] == PROCESSING:
-                self.uploadListBox.insert(END, str(name[2]) + ': ' + name[0] + '\t\t -> Upando...')
-                self.uploadListBox.itemconfig(idx, foreground = 'orange')
-            elif name[1] == REPEATED:
-                self.uploadListBox.insert(END, str(name[2]) + ': ' + name[0] + '\t\t -> Repetido, não upado')
-                self.uploadListBox.itemconfig(idx, foreground = 'purple')
-            elif name[1] == ERROR:
-                self.uploadListBox.insert(END, str(name[2]) + ': ' + name[0] + '\t\t -> Erro no upload.')
-                self.uploadListBox.itemconfig(idx, foreground = 'red')
-            else:
-                self.uploadListBox.insert(END, str(name[2]) + ': ' + name[0])
+        name = self.listBoxNames[idx]
+        self.uploadListBox.delete(idx, idx)
+        
+        if name[1] == FINISHED:
+            self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0] + '\t\t -> Terminado')
+            self.uploadListBox.itemconfig(idx, foreground = 'green')
+        elif name[1] == PROCESSING:
+            self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0] + '\t\t -> Upando...')
+            self.uploadListBox.itemconfig(idx, foreground = 'orange')
+        elif name[1] == REPEATED:
+            self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0] + '\t\t -> Repetido, não upado')
+            self.uploadListBox.itemconfig(idx, foreground = 'purple')
+        elif name[1] == ERROR:
+            self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0] + '\t\t -> Erro no upload.')
+            self.uploadListBox.itemconfig(idx, foreground = 'red')
+        else:
+            self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0])
     
     def fillFileList(self):
         """ Method fills the Listbox with the selected episodes for upload. """
@@ -1020,7 +1024,7 @@ class uploadPage(Frame):
                     self.fileList.append([name, QUEUED])
                     self.thumbList.append(thumb)
 
-                    self.updateListBoxUpload()
+                    # self.updateListBoxUpload()
                 
                 else:
                     messagebox.showerror('AnieZilla', 'Não existe thumb para esse episódio.')
