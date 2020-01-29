@@ -25,7 +25,9 @@ FINISHED = 0
 REPEATED = 1
 ERROR = 2
 PROCESSING = 3
-QUEUED = 4
+STOPED = 4
+PAUSED = 5
+QUEUED = 6
 
-UPDATE_UPLOAD_LIST_STRING = ['\t\t - > Terminado.', '\t\t -> Repetido, não upado.', '\t\t -> Erro no upload.', '\t\t -> Upando...']
-UPDATE_UPLOAD_LIST_COLOR = ['green', 'purple', 'red', 'orange']
+UPDATE_UPLOAD_LIST_COLOR = ['green', 'purple', 'red', 'orange', 'red', 'blue']
+UPDATE_UPLOAD_LIST_STRING = [' -> Terminado.', ' -> Repetido, não upado.', ' -> Erro no upload.', ' -> Upando...', ' -> Parado.', ' -> Pausado']
