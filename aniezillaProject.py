@@ -10,6 +10,7 @@ from threading import Thread
 from tkinter import messagebox, filedialog, ttk
 import glob
 from time import sleep
+from ftpModule import ftpUploadModule
 
 db = Database()
 
@@ -59,14 +60,14 @@ class App(Tk):
         self.centerFootFrame = Frame(self.footFrame,bg = 'red')
         self.centerFootFrame.pack()
 
-        self.footLabel = Label(self.leftFootFrame, text = '1.1.11', font = ('Calibri', 8, 'italic'))
+        self.footLabel = Label(self.leftFootFrame, text = '', font = ('Times New Roman', 7))
         self.footLabel.pack(side = 'left')
 
         self.percentageLabel = Label(self.rightFootFrame, text = '', font = ('Calibri', 8, 'italic'))
         self.percentageLabel.pack(side = 'right')
 
         self.episodeName = Label(self.centerFootFrame, text = '', font = ('Calibri', 8, 'italic'))
-        self.episodeName.pack(anchor = 'e')
+        self.episodeName.pack(side = 'left')
 
         self.frames = {}
 
@@ -544,6 +545,7 @@ class uploadPage(Frame):
     def __init__(self, parent, controller, name = 'AnieZilla - Upload'):
         Frame.__init__(self, parent)
 
+        self.ftp = None
         self.path = ''
         self.name = name
         self.flag = False
@@ -573,10 +575,10 @@ class uploadPage(Frame):
         self.controlButtonsFrame = ttk.Frame(self)
         self.controlButtonsFrame.grid(row = 4, column = 5, columnspan = 6, rowspan = 3)
 
-        self.stopUploadButton = ttk.Button(self.controlButtonsFrame, text = 'Parar Upload', width = 23)
+        self.stopUploadButton = ttk.Button(self.controlButtonsFrame, text = 'Parar Upload', width = 23, command = self.cancelUpload)
         self.stopUploadButton.grid(row = 0, column = 0)
 
-        self.pauseUploadButton = ttk.Button(self.controlButtonsFrame, text = 'Pausar upload', width = 23)
+        self.pauseUploadButton = ttk.Button(self.controlButtonsFrame, text = 'Pausar upload', width = 23, command = self.pauseUpload)
         self.pauseUploadButton.grid(row = 0, column = 2)
 
         if DEBUG:
@@ -715,11 +717,10 @@ class uploadPage(Frame):
                 messagebox.showerror('AnieZilla', fnf)
 
                 if self.flag == True:
-                    self.configFile.close()
                     self.tmpConfigFile.close()
                     os.remove(path + 'config.tmp')
-                else:
-                    self.configFile.close()
+
+                self.configFile.close()
 
                 self.backButton['state'] = 'normal'
                 self.controller.frames[directoryPage].clearListBox()
@@ -744,11 +745,10 @@ class uploadPage(Frame):
                     _videoFile.close()
 
                     if self.flag == True:
-                        self.configFile.close()
                         self.tmpConfigFile.close()
                         os.remove(self.path + 'config.tmp')
-                    else:
-                        self.configFile.close()
+                
+                    self.configFile.close()
 
                     self.backButton['state'] = 'normal'
 
@@ -770,10 +770,9 @@ class uploadPage(Frame):
                     _thumbFile.close()
 
                     if self.flag == True:
-                        self.eraseUploadedLine(self.configFile, episodeJson)
                         self.eraseUploadedLine(self.tmpConfigFile, episodeJson)
-                    else:
-                        self.eraseUploadedLine(self.configFile, episodeJson)
+                    
+                    self.eraseUploadedLine(self.configFile, episodeJson)
 
                     self.updateListBoxUpload(idx)
                     continue
@@ -781,31 +780,49 @@ class uploadPage(Frame):
             except Exception as exe:
                 messagebox.showerror('AnieZilla', exe)
 
+                name[1] = ERROR
                 _thumbFile.close()
                 _videoFile.close()
 
                 continue
 
-            maxbytes = int(os.path.getsize(self.path + video))
+            maxbytes = os.path.getsize(self.path + video)
             start_time = datetime.now()
 
             try:
                 
-                ftp = FTP('ftp.anieclipse.tk', 'anieclipse3', 'StarBugs#029')
+                self.ftp = ftpUploadModule('ftp.anieclipse.tk', 'anieclipse3', 'StarBugs#029')
 
-                self.tracker = progressBar(self.progressBarFrame, self.controller, maxbytes, start_time, ftp)
+                self.tracker = progressBar(self.progressBarFrame, self.controller, maxbytes, start_time, self.ftp)
                 self.controller.percentageLabel['text'] = '0% - 0 Kbps'
                 self.controller.episodeName['text'] = name[0][:30] + '...' if len(name[0]) > 30 else name[0]
 
                 serverPath = '/public_html/' + animePath + video
+
+                rest = None
+                fileList = self.ftp.nlst('/public_html/' + animePath)
+
+                if video in fileList:
+                    
+                    rest = self.ftp.size(serverPath)
+                    _videoFile.seek(rest, 0)
+
+                    self.tracker.rest = True
+                    self.tracker.sizeWrittenRest = rest
+
                 self.tracker.timeBegin = datetime.now()
-                # ftp.storbinary('STOR ' + serverPath, _videoFile, 20000, self.tracker.updateProgress)
-                
+                self.ftp.storbinary('STOR ' + serverPath, _videoFile, 20000, self.tracker.updateProgress, rest)
+
                 serverPath = '/public_html/' + animePath + 'img/' + thumb
-                # ftp.storbinary('STOR ' + serverPath, _thumbFile)
+                # self.ftp.storbinary('STOR ' + serverPath, _thumbFile)
+
+                if self.ftp.stop == False:
+                    name[1] = FINISHED
+                else:
+                    name[1] = STOPED
+                    self.backButton['state'] = 'able'
                 
-                sleep(5)
-                name[1] = FINISHED
+                # sleep(5)
 
                 # if not db.isRepeated(episode):
                 #     if db.isLast(episode) == False:
@@ -814,22 +831,22 @@ class uploadPage(Frame):
                 #         db.insertAndUpdate(episode)
 
                 if self.flag == True:
-                    self.eraseUploadedLine(self.configFile, episodeJson)
                     self.eraseUploadedLine(self.tmpConfigFile, episodeJson)
-                else:
-                    self.eraseUploadedLine(self.configFile, episodeJson)
+        
+                self.eraseUploadedLine(self.configFile, episodeJson)
 
             except Exception as ce:
                 messagebox.showerror('AnieZilla', ce)
 
                 if self.flag == True:
-                    self.configFile.close()
                     self.tmpConfigFile.close()
-                    os.remove(path + 'config.tmp')
-                else:
-                    self.configFile.close()
+                    os.remove(self.path + 'config.tmp')
 
+                self.configFile.close()
+
+                name[1] = ERROR
                 self.backButton['state'] = 'normal'
+                # self.updateListBoxUpload(idx)
                 self.controller.frames[directoryPage].clearListBox()
 
                 return
@@ -839,13 +856,10 @@ class uploadPage(Frame):
                 _videoFile.close()
                 _thumbFile.close()
 
-                if self.flag == True and not self.tmpConfigFile.closed:
-                    self.updateCfgFile(self.tmpConfigFile, self.configFile)
-
                 if self.tracker != None:
                     self.tracker.progress.destroy()
 
-                ftp.quit()
+                self.ftp.quit()
 
             self.updateListBoxUpload(idx)
 
@@ -875,35 +889,22 @@ class uploadPage(Frame):
                 x = json.loads(line)
 
                 if x['episodio'] in episodeNumbers:
-                    tmp.write(json.dumps(x, ensure_ascii = True))
+                    tmp.write(json.dumps(x, ensure_ascii = False))
                     tmp.write('\n')
 
             cfgFile.seek(0)
 
     def eraseUploadedLine(self, cfgFile, entry):
         """ Method erases a line of info in the .cfg file whose episode has already been uploaded and registered in the database. """
-        
+
+        cfgFile.seek(0)
         arqresult = cfgFile.readlines()
         cfgFile.seek(0)
 
+        tmp = str(entry)
         for line in arqresult:
-            if line != entry:
-                cfgFile.write(line)
-
-        cfgFile.truncate()
-        cfgFile.seek(0)
-
-    def updateCfgFile(self, cfgFileTmp, cfgFile):
-        """ Method updates the main .cfg file with the changes made in the temporary .cfg file. """
-        
-        resultcfg = cfgFile.readlines()
-        resulttmp = cfgFileTmp.readlines()
-        
-        cfgFile.seek(0)
-        cfgFileTmp.seek(0)
-
-        for line in resultcfg:
-            if line not in resulttmp:
+            x = re.sub('"', '\'', line).strip('\n')
+            if x != tmp:
                 cfgFile.write(line)
 
         cfgFile.truncate()
@@ -930,10 +931,23 @@ class uploadPage(Frame):
         return i
 
     def cancelUpload(self):
-        ...
+        
+        try:
+            self.ftp.stop = True
+        except Exception:
+            pass
 
     def pauseUpload(self):
-        ...
+        
+        self.ftp.pause = True
+        self.pauseUploadButton['text'] = 'Resume Upload'
+        self.pauseUploadButton['command'] = self.resumeUpload
+
+    def resumeUpload(self):
+
+        self.ftp.pause = False
+        self.pauseUploadButton['text'] = 'Pause Upload'
+        self.pauseUploadButton['command'] = self.pauseUpload
 
     def updateListBoxUpload(self, idx):
         """ Method updates the Listbox of the progress on de episodes uploads. """
