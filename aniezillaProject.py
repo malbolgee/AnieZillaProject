@@ -11,6 +11,7 @@ from tkinter import messagebox, filedialog, ttk
 import glob
 from time import sleep
 from ftpModule import ftpUploadModule
+from collections import defaultdict
 
 db = Database()
 
@@ -60,7 +61,7 @@ class App(Tk):
         self.centerFootFrame = Frame(self.footFrame,bg = 'red')
         self.centerFootFrame.pack()
 
-        self.footLabel = Label(self.leftFootFrame, text = '', font = ('Times New Roman', 7))
+        self.footLabel = Label(self.leftFootFrame, text = '', font = ('Calibri', 7))
         self.footLabel.pack(side = 'left')
 
         self.percentageLabel = Label(self.rightFootFrame, text = '', font = ('Calibri', 8, 'italic'))
@@ -405,7 +406,7 @@ class directoryPage(Frame):
     def uploadButton(self):
 
         if not self.fileList:
-            messagebox.showerror('AnieZilla', 'Não há nada na lista de episódios.')
+            messagebox.showerror('AnieZilla', 'Adicione algum episódio para upar.')
             return
 
         try:
@@ -418,11 +419,8 @@ class directoryPage(Frame):
             if result == 1:
                 messagebox.showerror('AnieZilla', 'Há mais arquivos selecionados do que informações disponíveis.')
                 return
-
             elif not self.episodeNumberVerify(cfg):
-
-                messagebox.showerror('AnieZilla', 'Você está tentando upar episódios para os quais não existem informações.')
-
+                messagebox.showerror('AnieZilla', 'Um ou mais episódios não têm informações no .cfg')
                 return
 
         except FileNotFoundError as fnf:
@@ -442,7 +440,11 @@ class directoryPage(Frame):
         result = self.episodeNumbers.difference({json.loads(num)['episodio'] for num in cfgFile})
 
         return True if not result else False
-    
+
+    def thumbNumberVerify(self, thumbNumbers):
+
+        ...
+
     def openDirectory(self):
         """ Method handles the file choosing. """
         
@@ -460,6 +462,7 @@ class directoryPage(Frame):
             for name in fileNames:
                 episodeList.append(name)
             
+            flag = False
             if os.path.exists(path + '\\' + 'img'):
                 
                 imgFileList = [i for i in os.listdir(path + '\\' + 'img') if os.path.isfile(path + '\\' + 'img\\' + i)]
@@ -468,31 +471,31 @@ class directoryPage(Frame):
                 self.fileList = self.getFileNames(episodeList)
 
                 if not self.episodeNameVerify():
-                    messagebox.showwarning('AnieZilla', 'Um ou mais episódios estão com o nome incorreto.')
+                    messagebox.showerror('AnieZilla', 'Um ou mais episódios estão com o nome incorreto.')
+                    flag = True
                     
-                    self.fileList = []
-                    self.thumbFiles = []
-
-                    return
                 
                 if not self.thumbNameVerify():
-                    messagebox.showwarning('AnieZilla', 'Uma ou mais thumbs estão com o nome incorreto.')
-                    
-                    self.fileList = []
-                    self.thumbFiles = []
+                    messagebox.showerror('AnieZilla', 'Uma ou mais thumbs estão com o nome incorreto.')
+                    flag = True
 
-                    return
 
                 self.episodeNumbers = self.getFileNumber(self.fileList)
-
                 self.thumbFiles = [i for i in imgFileList for j in self.episodeNumbers if re.search(r'\bthumb-{}[.]png\b'.format(j), i)]
 
-                if len(imgFileList) < len(self.fileList):
-                    messagebox.showwarning('Aniezilla', 'Uma um mais thumbs estão faltando.')
+                thumbNumbers = self.getFileNumber(self.thumbFiles)
 
+                if len(imgFileList) < len(self.fileList):
+                    messagebox.showerror('Aniezilla', 'Uma um mais thumbs estão faltando.')
+                    flag = True
+
+                if not len(thumbNumbers.intersection(self.episodeNumbers)) == len(self.fileList):
+                    messagebox.showerror('AnieZilla', 'Um ou mais episódios não têm thumbs.')
+                    flag = True
+
+                if flag:
                     self.fileList = []
                     self.thumbFiles = []
-
                     return
 
                 self.fillFileList(self.fileList)
@@ -559,6 +562,7 @@ class uploadPage(Frame):
         self.episodeNumbers = set()
         self.configFile = None
         self.tmpConfigFile = None
+        self.cfgSelectedEntries = None
 
         self.label = Label(self, text = 'Fila de Uploads', font = ('Calibri', 12, 'italic'))
         self.label.grid(row = 0, column = 5, columnspan = 6)
@@ -685,18 +689,7 @@ class uploadPage(Frame):
             self.backButton['state'] = 'normal'
             return
 
-        result = self.cfgLineCount(self.configFile)
-        
-        if result == -1:
-            
-            self.flag = True
-            self.cfgSelectEntry(self.path, self.configFile)
-            self.tmpConfigFile = open(self.path + 'config.tmp', 'r+', encoding = 'utf-8')
-
-        if self.flag == True:
-            self.fillListBoxUpload(self.tmpConfigFile)
-        else:
-            self.fillListBoxUpload(self.configFile)
+        self.fillListBoxUpload()
 
         idx = -1
         names = self.listBoxNames
@@ -716,10 +709,6 @@ class uploadPage(Frame):
             except FileNotFoundError as fnf:
                 messagebox.showerror('AnieZilla', fnf)
 
-                if self.flag == True:
-                    self.tmpConfigFile.close()
-                    os.remove(path + 'config.tmp')
-
                 self.configFile.close()
 
                 self.backButton['state'] = 'normal'
@@ -729,12 +718,9 @@ class uploadPage(Frame):
 
             animeId = searchPage.animeId[searchPage.selectedItem][0]
             animePath = searchPage.animeId[searchPage.selectedItem][1] + '/'
-
-            if self.flag == True:
-                episodeJson = json.loads(self.tmpConfigFile.readline())
-            else:
-                episodeJson = json.loads(self.configFile.readline())
-
+          
+            number = int(re.findall(r'\d+', video)[0])
+            episodeJson = self.cfgSelectedEntries[number]
             episode = Episode(loginPage.userId, animeId, animePath, video, episodeJson)
 
             try:
@@ -744,10 +730,6 @@ class uploadPage(Frame):
                     _thumbFile.close()
                     _videoFile.close()
 
-                    if self.flag == True:
-                        self.tmpConfigFile.close()
-                        os.remove(self.path + 'config.tmp')
-                
                     self.configFile.close()
 
                     self.backButton['state'] = 'normal'
@@ -768,9 +750,6 @@ class uploadPage(Frame):
                     name[1] = REPEATED
                     _videoFile.close()
                     _thumbFile.close()
-
-                    if self.flag == True:
-                        self.eraseUploadedLine(self.tmpConfigFile, episodeJson)
                     
                     self.eraseUploadedLine(self.configFile, episodeJson)
 
@@ -797,56 +776,66 @@ class uploadPage(Frame):
                 self.controller.percentageLabel['text'] = '0% - 0 Kbps'
                 self.controller.episodeName['text'] = name[0][:30] + '...' if len(name[0]) > 30 else name[0]
 
-                serverPath = '/public_html/' + animePath + video
+                videoPath = '/public_html/' + animePath + video
 
                 rest = None
                 fileList = self.ftp.nlst('/public_html/' + animePath)
 
                 if video in fileList:
                     
-                    rest = self.ftp.size(serverPath)
+                    rest = self.ftp.size(videoPath)
                     _videoFile.seek(rest, 0)
 
                     self.tracker.rest = True
                     self.tracker.sizeWrittenRest = rest
 
-                self.tracker.timeBegin = datetime.now()
-                self.ftp.storbinary('STOR ' + serverPath, _videoFile, 20000, self.tracker.updateProgress, rest)
+                while name[1] != FINISHED:
 
-                serverPath = '/public_html/' + animePath + 'img/' + thumb
-                # self.ftp.storbinary('STOR ' + serverPath, _thumbFile)
+                    self.tracker.timeBegin = datetime.now()
+                    self.ftp.storbinary('STOR ' + videoPath, _videoFile, 20000, self.tracker.updateProgress, rest)
 
-                if self.ftp.stop == False:
-                    name[1] = FINISHED
-                else:
+                    thumbPath = '/public_html/' + animePath + 'img/' + thumb
+                    self.ftp.storbinary('STOR ' + thumbPath, _thumbFile)
+
+                    if self.ftp.pause:
+
+                        name[1] = PAUSED
+                        self.updateListBoxUpload(idx)
+
+                        while self.ftp.pause:
+                            sleep(0.3)
+                            self.ftp.voidcmd('NOOP')
+
+                        rest = self.ftp.size(videoPath)
+
+                        name[1] = PROCESSING
+                        self.updateListBoxUpload(idx)
+
+                    elif self.ftp.stop:
+                        break
+                    else:
+                        name[1] = FINISHED
+
+                if self.ftp.stop:
                     name[1] = STOPED
-                    self.backButton['state'] = 'able'
-                
-                # sleep(5)
+                    break
 
-                # if not db.isRepeated(episode):
-                #     if db.isLast(episode) == False:
-                #         db.insertEpisode(episode)
-                #     else:
-                #         db.insertAndUpdate(episode)
-
-                if self.flag == True:
-                    self.eraseUploadedLine(self.tmpConfigFile, episodeJson)
+                if not db.isRepeated(episode):
+                    if db.isLast(episode) == False:
+                        db.insertEpisode(episode)
+                    else:
+                        db.insertAndUpdate(episode)
         
                 self.eraseUploadedLine(self.configFile, episodeJson)
 
             except Exception as ce:
                 messagebox.showerror('AnieZilla', ce)
 
-                if self.flag == True:
-                    self.tmpConfigFile.close()
-                    os.remove(self.path + 'config.tmp')
-
                 self.configFile.close()
 
                 name[1] = ERROR
                 self.backButton['state'] = 'normal'
-                # self.updateListBoxUpload(idx)
+                self.updateListBoxUpload(idx)
                 self.controller.frames[directoryPage].clearListBox()
 
                 return
@@ -869,30 +858,14 @@ class uploadPage(Frame):
         else:
             self.configFile.close()
 
-        if self.flag == True and not self.tmpConfigFile.closed:
-            self.tmpConfigFile.close()
-            os.remove(self.path + 'config.tmp')
-
-        messagebox.showinfo('AnieZilla', 'Todos os uploads terminaram!')
-        self.backButton['state'] = 'normal'
-        self.controller.frames[directoryPage].clearListBox()
-
-    def cfgSelectEntry(self, path, cfgFile):
-        """ Method chooses the right lines of info in the .cfg file for the episodes selected. """
-
-        episodeNumbers = self.controller.frames[directoryPage].episodeNumbers
+        if not self.ftp.stop:
+            messagebox.showinfo('AnieZilla', 'Todos os uploads terminaram!')
         
-        with open(path + 'config.tmp', 'w+', encoding = 'utf-8') as tmp:
-
-            for line in cfgFile:
-
-                x = json.loads(line)
-
-                if x['episodio'] in episodeNumbers:
-                    tmp.write(json.dumps(x, ensure_ascii = False))
-                    tmp.write('\n')
-
-            cfgFile.seek(0)
+        self.updateListBoxUpload(idx)
+        self.backButton['state'] = 'normal'
+        self.stopUploadButton['state'] = 'disabled'
+        self.pauseUploadButton['state'] = 'disabled'
+        self.controller.frames[directoryPage].clearListBox()
 
     def eraseUploadedLine(self, cfgFile, entry):
         """ Method erases a line of info in the .cfg file whose episode has already been uploaded and registered in the database. """
@@ -931,26 +904,29 @@ class uploadPage(Frame):
         return i
 
     def cancelUpload(self):
+        """ Handles the stop upload buttonCommand """
         
-        try:
+        if messagebox.askokcancel('AnieZilla', 'Tem certeza que deseja cancelar o upload?'):
             self.ftp.stop = True
-        except Exception:
-            pass
-
+            
     def pauseUpload(self):
+        """ Handles the pause upload button command. """
         
         self.ftp.pause = True
+        self.stopUploadButton['state'] = 'disable'
         self.pauseUploadButton['text'] = 'Resume Upload'
         self.pauseUploadButton['command'] = self.resumeUpload
 
     def resumeUpload(self):
+        """ Handles the resume upload button command. """
 
         self.ftp.pause = False
+        self.stopUploadButton['state'] = 'able'
         self.pauseUploadButton['text'] = 'Pause Upload'
         self.pauseUploadButton['command'] = self.pauseUpload
 
     def updateListBoxUpload(self, idx):
-        """ Method updates the Listbox of the progress on de episodes uploads. """
+        """ Method updates the Listbox with progress on the episodes uploads. """
 
         name = self.listBoxNames[idx]
         self.uploadListBox.delete(idx, idx)
@@ -974,18 +950,32 @@ class uploadPage(Frame):
             self.fileList.append(file)
             self.thumbList.append(thumb)
 
-    def fillListBoxUpload(self, cfgFile):
+    def fillListBoxUpload(self):
+        """ Fills the uplod list. """
 
         self.listBoxNames = []
 
-        for line in cfgFile:
+        for line in self.cfgSelectEntry(self.configFile):
 
-            x = json.loads(line)
-            self.listBoxNames.append([x['nome'], QUEUED, x['episodio']])
+            self.listBoxNames.append([line['nome'], QUEUED, line['episodio']])
             self.uploadListBox.insert(END, str(self.listBoxNames[-1][2]) + ': ' + self.listBoxNames[-1][0])
-            
-        cfgFile.seek(0)
 
+        self.configFile.seek(0)
+
+    def cfgSelectEntry(self, cfgFile):
+        """ Selects the right lines from the .cfg file according to the files selected. """
+        
+        self.cfgSelectedEntries = defaultdict(lambda: 0)
+        episodeNumbers = self.controller.frames[directoryPage].episodeNumbers
+
+        for line in cfgFile:
+            
+            x = json.loads(line)
+
+            if x['episodio'] in episodeNumbers:
+                self.cfgSelectedEntries[x['episodio']] = x
+                yield x
+      
     def plusButtonCommand(self):
 
         if self.overUpload():
