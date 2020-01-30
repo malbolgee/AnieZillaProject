@@ -31,3 +31,6 @@ QUEUED = 6
 
 UPDATE_UPLOAD_LIST_COLOR = ['green', 'purple', 'red', 'orange', 'red', 'blue']
 UPDATE_UPLOAD_LIST_STRING = [' -> Terminado.', ' -> Repetido, não upado.', ' -> Erro no upload.', ' -> Upando...', ' -> Parado.', ' -> Pausado']
+
+EMPTY_CFG = 0
+LESS_CFG = 1
