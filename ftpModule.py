@@ -1,6 +1,7 @@
 import sys
 import socket
 from ftplib import FTP
+from time import sleep
 from socket import _GLOBAL_DEFAULT_TIMEOUT
 
 __all__ = ["FTP", "error_reply", "error_temp", "error_perm", "error_proto",
@@ -28,9 +29,11 @@ class ftpUploadModule(FTP):
                  timeout=_GLOBAL_DEFAULT_TIMEOUT, source_address=None):
 
         FTP.__init__(self, host, user, passwd, acct, timeout, source_address)
+
         self.stop = False
         self.pause = False
-    
+        self.noopLoopFlag = True
+
     def storbinary(self, cmd, fp, blocksize=8192, callback=None, rest=None):
         
         self.voidcmd('TYPE I')
@@ -52,6 +55,12 @@ class ftpUploadModule(FTP):
             if _SSLSocket is not None and isinstance(conn, _SSLSocket):
                 conn.unwrap()
         return self.voidresp()
+
+    def noopLoop(self):
+
+        while self.noopLoopFlag:
+            self.voidcmd('NOOP')
+            sleep(10)
 
 try:
     import ssl
