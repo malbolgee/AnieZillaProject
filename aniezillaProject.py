@@ -416,10 +416,10 @@ class directoryPage(Frame):
             self.controller.frames[uploadPage].fillFileList()
             result = self.controller.frames[uploadPage].cfgLineCount(cfg)
 
-            if result == 1:
+            if result == LESS_CFG:
                 messagebox.showerror('AnieZilla', 'Há mais arquivos selecionados do que informações disponíveis.')
                 return
-            elif not self.episodeNumberVerify(cfg):
+            if not self.episodeNumberVerify(cfg):
                 messagebox.showerror('AnieZilla', 'Um ou mais episódios não têm informações no .cfg')
                 return
 
@@ -440,10 +440,6 @@ class directoryPage(Frame):
         result = self.episodeNumbers.difference({json.loads(num)['episodio'] for num in cfgFile})
 
         return True if not result else False
-
-    def thumbNumberVerify(self, thumbNumbers):
-
-        ...
 
     def openDirectory(self):
         """ Method handles the file choosing. """
@@ -471,14 +467,12 @@ class directoryPage(Frame):
                 self.fileList = self.getFileNames(episodeList)
 
                 if not self.episodeNameVerify():
-                    messagebox.showerror('AnieZilla', 'Um ou mais episódios estão com o nome incorreto.')
                     flag = True
-                    
+                    messagebox.showerror('AnieZilla', 'Um ou mais episódios estão com o nome incorreto.')
                 
                 if not self.thumbNameVerify():
-                    messagebox.showerror('AnieZilla', 'Uma ou mais thumbs estão com o nome incorreto.')
                     flag = True
-
+                    messagebox.showerror('AnieZilla', 'Uma ou mais thumbs estão com o nome incorreto.')
 
                 self.episodeNumbers = self.getFileNumber(self.fileList)
                 self.thumbFiles = [i for i in imgFileList for j in self.episodeNumbers if re.search(r'\bthumb-{}[.]png\b'.format(j), i)]
@@ -486,12 +480,12 @@ class directoryPage(Frame):
                 thumbNumbers = self.getFileNumber(self.thumbFiles)
 
                 if len(imgFileList) < len(self.fileList):
-                    messagebox.showerror('Aniezilla', 'Uma um mais thumbs estão faltando.')
                     flag = True
+                    messagebox.showerror('Aniezilla', 'Uma um mais thumbs estão faltando.')
 
                 if not len(thumbNumbers.intersection(self.episodeNumbers)) == len(self.fileList):
-                    messagebox.showerror('AnieZilla', 'Um ou mais episódios não têm thumbs.')
                     flag = True
+                    messagebox.showerror('AnieZilla', 'Um ou mais episódios não têm thumbs.')
 
                 if flag:
                     self.fileList = []
@@ -521,10 +515,6 @@ class directoryPage(Frame):
 
         return names
 
-    def getFiles(self, path, pattern):
-
-        return [i for i in os.listdir(path) if search(pattern, i)]
-
     def fillFileList(self, lst):
         """ Method fills the Listbox with the selected files. """
         
@@ -532,7 +522,7 @@ class directoryPage(Frame):
         self.fileListBox.insert(END, *lst)
 
     def getFileNumber(self, fileList):
-        """ Method extracts the episode number in the file name. """
+        """ Method extracts the number in the file name. """
 
         numbers = set()
         for number in fileList:
@@ -601,7 +591,7 @@ class uploadPage(Frame):
         self.queueButtonsControlFrame = ttk.Frame(self)
         self.queueButtonsControlFrame.grid(row = 1, column = 20, rowspan = 3 , sticky = 'ns')
 
-        self.plusButton = ttk.Button(self.queueButtonsControlFrame, image = self.imgPlusButton)
+        self.plusButton = ttk.Button(self.queueButtonsControlFrame, image = self.imgPlusButton, command = self.plusButtonCommand)
         self.plusButton.image = self.imgPlusButton
         self.plusButton.grid(row = 0, column = 0, pady = 1, padx = 1)
 
@@ -675,7 +665,6 @@ class uploadPage(Frame):
 
     def f(self):
 
-        self.flag = False
         self.backButton['state'] = 'disabled'
         self.path = self.controller.frames[directoryPage].path
         self.episodeNumbers = self.controller.frames[directoryPage].episodeNumbers
@@ -731,7 +720,6 @@ class uploadPage(Frame):
                     _videoFile.close()
 
                     self.configFile.close()
-
                     self.backButton['state'] = 'normal'
 
                     return
@@ -777,6 +765,7 @@ class uploadPage(Frame):
                 self.controller.episodeName['text'] = name[0][:30] + '...' if len(name[0]) > 30 else name[0]
 
                 videoPath = '/public_html/' + animePath + video
+                thumbPath = '/public_html/' + animePath + 'img/' + thumb
 
                 rest = None
                 fileList = self.ftp.nlst('/public_html/' + animePath)
@@ -793,8 +782,6 @@ class uploadPage(Frame):
 
                     self.tracker.timeBegin = datetime.now()
                     self.ftp.storbinary('STOR ' + videoPath, _videoFile, 20000, self.tracker.updateProgress, rest)
-
-                    thumbPath = '/public_html/' + animePath + 'img/' + thumb
                     self.ftp.storbinary('STOR ' + thumbPath, _thumbFile)
 
                     if self.ftp.pause:
@@ -802,9 +789,12 @@ class uploadPage(Frame):
                         name[1] = PAUSED
                         self.updateListBoxUpload(idx)
 
+                        pauseThread = Thread(target = self.ftp.noopLoop)
+                        pauseThread.setDaemon(True)
+                        pauseThread.start()
+
                         while self.ftp.pause:
                             sleep(0.3)
-                            self.ftp.voidcmd('NOOP')
 
                         rest = self.ftp.size(videoPath)
 
@@ -820,11 +810,11 @@ class uploadPage(Frame):
                     name[1] = STOPED
                     break
 
-                if not db.isRepeated(episode):
-                    if db.isLast(episode) == False:
-                        db.insertEpisode(episode)
-                    else:
-                        db.insertAndUpdate(episode)
+                # if not db.isRepeated(episode):
+                #     if db.isLast(episode) == False:
+                #         db.insertEpisode(episode)
+                #     else:
+                #         db.insertAndUpdate(episode)
         
                 self.eraseUploadedLine(self.configFile, episodeJson)
 
@@ -852,7 +842,7 @@ class uploadPage(Frame):
 
             self.updateListBoxUpload(idx)
 
-        if self.cfgLineCount(self.configFile) == 2:
+        if self.cfgLineCount(self.configFile) == EMPTY_CFG:
             self.configFile.close()
             os.remove(self.path + 'config.cfg')
         else:
@@ -891,14 +881,10 @@ class uploadPage(Frame):
             i += 1
 
         if i == 0:
-            i = 2
-        elif i == len(self.fileList):
             i = 0
         elif i < len(self.fileList):
             i = 1
-        elif i > len(self.fileList):
-            i = -1
-
+       
         cfgFile.seek(0)
 
         return i
@@ -913,6 +899,7 @@ class uploadPage(Frame):
         """ Handles the pause upload button command. """
         
         self.ftp.pause = True
+        self.ftp.noopLoopFlag = True
         self.stopUploadButton['state'] = 'disable'
         self.pauseUploadButton['text'] = 'Resume Upload'
         self.pauseUploadButton['command'] = self.resumeUpload
@@ -921,6 +908,7 @@ class uploadPage(Frame):
         """ Handles the resume upload button command. """
 
         self.ftp.pause = False
+        self.ftp.noopLoopFlag = False
         self.stopUploadButton['state'] = 'able'
         self.pauseUploadButton['text'] = 'Pause Upload'
         self.pauseUploadButton['command'] = self.pauseUpload
@@ -965,7 +953,7 @@ class uploadPage(Frame):
     def cfgSelectEntry(self, cfgFile):
         """ Selects the right lines from the .cfg file according to the files selected. """
         
-        self.cfgSelectedEntries = defaultdict(lambda: 0)
+        self.cfgSelectedEntries = {}
         episodeNumbers = self.controller.frames[directoryPage].episodeNumbers
 
         for line in cfgFile:
@@ -979,10 +967,10 @@ class uploadPage(Frame):
     def plusButtonCommand(self):
 
         if self.overUpload():
-            messagebox.showerror('AnieZilla', 'Não é possível adicionar episódio, upload já terminou.')
+            messagebox.showerror('AnieZilla', 'Não é possível adicionar episódio, todos os uploads já terminaram.')
             return
 
-        if self.flag:
+        if not self.hasCfgInfo(self.configFile):
             messagebox.showerror('AnieZilla', 'Não existe informação no arquivo .cfg para esse episódio.')
             return
 
@@ -993,35 +981,32 @@ class uploadPage(Frame):
             selectedPath = '\\'.join(re.split('/', fileName)[:-1]) + os.sep
 
             if selectedPath != self.path:
-                messabox.showerror('AnieZilla', 'Selecione um episódio no mesmo diretório dos demais.')
+                messabox.showerror('AnieZilla', 'Selecione um arquivo no mesmo diretório dos demais.')
                 return
 
             name = self.controller.frames[directoryPage].getSingleFileName(fileName, '/')
             if not re.search(r'\bepisodio-\d+[.]mp4\b', name):
-                messagebox.showerror('AnieZilla', 'O nome do episódio selecionado não está no padrão.')
+                messagebox.showerror('AnieZilla', 'O nome do arquivo selecionado não está no padrão.')
                 return
             
             number = self.controller.frames[directoryPage].getSingleFileNumber(fileName, int)
             if self.episodeNumbers & set({number}):
                 messagebox.showerror('AnieZilla', 'Esse episódio já está na lista.')
                 return
-            
-            if not self.hasCfgInfo(self.configFile):
-                messagebox.showerror('AnieZilla', 'Não existe informação no arquivo cfg para esse episódio.')
-                return
 
             if os.path.exists(self.path + '\\' + 'img'):
 
-                thumbPath = self.path + 'img' + os.sep + 'thumb-' + str(number) + 'png'
-                thumb = re.split('\\\\', glob.blog(thumbPath)[0])[-1]
+                thumbPath = self.path + 'img' + os.sep + 'thumb-' + str(number) + '.png'
+                thumb = re.split('\\\\', glob.glob(thumbPath)[0])[-1]
 
                 if thumb:
-                    self.episodeNumbers.add(number)
-                    self.fileList.append([name, QUEUED])
+                    self.fileList.append(name)
                     self.thumbList.append(thumb)
+                    self.episodeNumbers.add(number)
+                    self.addCfgInfoToEntries(number)
+                    self.listBoxNames.append(self.listBoxNameEntry(number))
+                    self.uploadListBox.insert(END, str(self.listBoxNames[-1][2]) + ': ' + self.listBoxNames[-1][0])
 
-                    # self.updateListBoxUpload()
-                
                 else:
                     messagebox.showerror('AnieZilla', 'Não existe thumb para esse episódio.')
                     return
@@ -1030,17 +1015,21 @@ class uploadPage(Frame):
                 messagebox.showerror('AnieZilla', 'A pasta img com as thumbs não existe no diretório do episódio.')
                 return
 
-    # Verificar função
-    def getIdxListBoxSelected(self):
+    def addCfgInfoToEntries(self, episodeNumber):
 
-        try:
+        for line in self.configFile:
 
-            idx = self.fillListBoxUpload.curselection()[0]
+            x = json.loads(line)
+            if x['episodio'] == episodeNumber:
+                self.cfgSelectedEntries[x['episodio']] = x
+                break
 
-        except IndexError:
-            pass
-            
-        return idx
+        self.configFile.seek(0)
+
+    def listBoxNameEntry(self, episodeNumber):
+        
+        entry = self.cfgSelectedEntries[episodeNumber]
+        return [entry['nome'], QUEUED, entry['episodio']]
 
     def hasCfgInfo(self, cfgFile):
 
