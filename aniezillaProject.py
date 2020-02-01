@@ -448,72 +448,43 @@ class directoryPage(Frame):
 
         if fileNames:
 
+            self.clearLists()
             self.path = '\\'.join(re.split('/', fileNames[0])[:-1]) + os.sep
-            path = self.path
-            
-            episodeList = []
-            self.fileList = []
-            self.thumbFiles = []
 
-            for name in fileNames:
-                episodeList.append(name)
-            
-            flag = False
-            if os.path.exists(path + '\\' + 'img'):
-                
-                imgFileList = [i for i in os.listdir(path + '\\' + 'img') if os.path.isfile(path + '\\' + 'img\\' + i)]
-                
-                self.thumbFiles = imgFileList
-                self.fileList = self.getFileNames(episodeList)
+            self.fileList = [re.split('/', name)[-1] for name in fileNames]
+            if not self.episodeNameVerify():
+                self.clearLists()
+                messagebox.showerror('AnieZilla', 'Um ou mais episódios estão com o nome incorreto.')
+                return
 
-                if not self.episodeNameVerify():
-                    flag = True
-                    messagebox.showerror('AnieZilla', 'Um ou mais episódios estão com o nome incorreto.')
-                
-                if not self.thumbNameVerify():
-                    flag = True
-                    messagebox.showerror('AnieZilla', 'Uma ou mais thumbs estão com o nome incorreto.')
+            if os.path.exists(self.path + 'img'):
 
                 self.episodeNumbers = self.getFileNumber(self.fileList)
-                self.thumbFiles = [i for i in imgFileList for j in self.episodeNumbers if re.search(r'\bthumb-{}[.]png\b'.format(j), i)]
+                self.thumbFiles = [re.split('\\\\', name)[-1] for name in glob.glob(self.path + 'img\*.png')]
+                self.thumbFiles = [name for name in self.thumbFiles if re.search(r'\bthumb-\d+[.]png\b', name)]
 
                 thumbNumbers = self.getFileNumber(self.thumbFiles)
 
-                if len(imgFileList) < len(self.fileList):
-                    flag = True
-                    messagebox.showerror('Aniezilla', 'Uma um mais thumbs estão faltando.')
-
-                if not len(thumbNumbers.intersection(self.episodeNumbers)) == len(self.fileList):
-                    flag = True
+                if not len(thumbNumbers & self.episodeNumbers) == len(self.fileList):
+                    self.clearLists()
                     messagebox.showerror('AnieZilla', 'Um ou mais episódios não têm thumbs.')
-
-                if flag:
-                    self.fileList = []
-                    self.thumbFiles = []
                     return
+        
+                self.thumbFiles = [name for name in self.thumbFiles if {int(re.findall(r'\d+', name)[0])} & self.episodeNumbers]
 
                 self.fillFileList(self.fileList)
             
             else:
                 messagebox.showerror('AnieZilla', 'É preciso existir uma pasta img com os arquivos de thumb no diretório dos episódios.')
 
+    def clearLists(self):
+        self.fileList = []
+        self.thumbFiles = []
+
     def episodeNameVerify(self):
         """ Method verifies if all the file names are in the pattern. """
 
         return all([re.search(r'\bepisodio-\d+[.]mp4\b', i) for i in self.fileList])
-
-    def thumbNameVerify(self):
-        """ Method verifies if all the file names are in the pattern. """
-
-        return all([re.search(r'\bthumb-\d+[.]png\b', i) for i in self.thumbFiles])
-
-    def getFileNames(self, lst):
-
-        names = []
-        for name in lst:
-            names.append(re.split('/', name)[-1])
-
-        return names
 
     def fillFileList(self, lst):
         """ Method fills the Listbox with the selected files. """
@@ -524,14 +495,7 @@ class directoryPage(Frame):
     def getFileNumber(self, fileList):
         """ Method extracts the number in the file name. """
 
-        numbers = set()
-        for number in fileList:
-
-            x = re.findall(r'\d+', number[:-1])
-            if x:
-                numbers.add(int(''.join(x)))
-
-        return numbers
+        return {int(''.join(re.findall(r'\d+', number[:-1]))) for number in fileList}
 
 class uploadPage(Frame):
     
@@ -967,7 +931,7 @@ class uploadPage(Frame):
     def plusButtonCommand(self):
 
         if self.overUpload():
-            messagebox.showerror('AnieZilla', 'Não é possível adicionar episódio, todos os uploads já terminaram.')
+            messagebox.showerror('AnieZilla', 'Não é possível adicionar mais nada, todos os uploads já terminaram.')
             return
 
         if not self.hasCfgInfo(self.configFile):
