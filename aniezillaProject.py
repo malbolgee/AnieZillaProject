@@ -512,10 +512,8 @@ class uploadPage(Frame):
         self.fileList = []
         self.thumbList = []
         self.listBoxNames = []
-        self.listboxUploadFunctionList = None
         self.episodeNumbers = set()
         self.configFile = None
-        self.tmpConfigFile = None
         self.cfgSelectedEntries = None
 
         self.label = Label(self, text = 'Fila de Uploads', font = ('Calibri', 12, 'italic'))
@@ -656,8 +654,8 @@ class uploadPage(Frame):
     
             try:
 
-                _videoFile = open(self.path + video, 'rb')
-                _thumbFile = open(self.path + 'img\\' + thumb, 'rb')
+                videoFile = open(self.path + video, 'rb')
+                thumbFile = open(self.path + 'img\\' + thumb, 'rb')
 
             except FileNotFoundError as fnf:
                 messagebox.showerror('AnieZilla', fnf)
@@ -680,8 +678,8 @@ class uploadPage(Frame):
                 
                 if db.isComplete(episode) == True:
                     messagebox.showwarning('AnieZilla', 'A obra na para a qual você está tentando upar o episódio já está completa!')
-                    _thumbFile.close()
-                    _videoFile.close()
+                    thumbFile.close()
+                    videoFile.close()
 
                     self.configFile.close()
                     self.backButton['state'] = 'normal'
@@ -700,31 +698,30 @@ class uploadPage(Frame):
 
                 if db.isRepeated(episode) != None:
                     name[1] = REPEATED
-                    _videoFile.close()
-                    _thumbFile.close()
+                    videoFile.close()
+                    thumbFile.close()
                     
                     self.eraseUploadedLine(self.configFile, episodeJson)
-
                     self.updateListBoxUpload(idx)
+
                     continue
 
             except Exception as exe:
                 messagebox.showerror('AnieZilla', exe)
 
                 name[1] = ERROR
-                _thumbFile.close()
-                _videoFile.close()
+                thumbFile.close()
+                videoFile.close()
 
                 continue
 
             maxbytes = os.path.getsize(self.path + video)
-            start_time = datetime.now()
 
             try:
                 
                 self.ftp = ftpUploadModule('ftp.anieclipse.tk', 'anieclipse3', 'StarBugs#029')
 
-                self.tracker = progressBar(self.progressBarFrame, self.controller, maxbytes, start_time, self.ftp)
+                self.tracker = progressBar(self.progressBarFrame, self.controller, maxbytes, self.ftp)
                 self.controller.percentageLabel['text'] = '0% - 0 Kbps'
                 self.controller.episodeName['text'] = name[0][:30] + '...' if len(name[0]) > 30 else name[0]
 
@@ -737,20 +734,20 @@ class uploadPage(Frame):
                 if video in fileList:
                     
                     rest = self.ftp.size(videoPath)
-                    _videoFile.seek(rest, 0)
+                    videoFile.seek(rest, 0)
 
                     self.tracker.rest = True
                     self.tracker.sizeWrittenRest = rest
 
                 while name[1] != FINISHED:
 
-                    self.tracker.timeBegin = datetime.now()
-                    self.ftp.storbinary('STOR ' + videoPath, _videoFile, 20000, self.tracker.updateProgress, rest)
-                    self.ftp.storbinary('STOR ' + thumbPath, _thumbFile)
+                    self.ftp.storbinary('STOR ' + videoPath, videoFile, 24576, self.tracker.updateProgress, rest)
+                    self.ftp.storbinary('STOR ' + thumbPath, thumbFile)
 
                     if self.ftp.pause:
 
                         name[1] = PAUSED
+                        self.tracker.rest = True
                         self.updateListBoxUpload(idx)
 
                         pauseThread = Thread(target = self.ftp.noopLoop)
@@ -761,8 +758,12 @@ class uploadPage(Frame):
                             sleep(0.3)
 
                         rest = self.ftp.size(videoPath)
+                        videoFile.seek(rest, 0)
 
                         name[1] = PROCESSING
+                        self.tracker.NewSizeWriten = 0
+                        self.tracker.sizeWrittenRest = rest
+                        self.tracker.start_time = datetime.now()
                         self.updateListBoxUpload(idx)
 
                     elif self.ftp.stop:
@@ -796,8 +797,8 @@ class uploadPage(Frame):
 
             finally:
 
-                _videoFile.close()
-                _thumbFile.close()
+                videoFile.close()
+                thumbFile.close()
 
                 if self.tracker != None:
                     self.tracker.progress.destroy()
