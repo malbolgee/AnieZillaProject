@@ -39,10 +39,11 @@ class ftpUploadModule(FTP):
         self.voidcmd('TYPE I')
         with self.transfercmd(cmd, rest) as conn:
             while 1:
-                buf = fp.read(blocksize)
 
                 if self.stop or self.pause:
                     break
+
+                buf = fp.read(blocksize)
 
                 if not buf:
                     break
