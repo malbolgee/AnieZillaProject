@@ -1,17 +1,14 @@
 from db import *
 from tkinter import *
-import os, sys, json, bcrypt
-from re import search, findall
-from ftplib import FTP
-from datetime import datetime
 from episode import *
+from time import sleep
 from progressbar import *
+import os, sys, json, bcrypt, glob
+from re import search, findall
+from datetime import datetime
 from threading import Thread
 from tkinter import messagebox, filedialog, ttk
-import glob
-from time import sleep
 from ftpModule import ftpUploadModule
-from collections import defaultdict
 
 db = Database()
 
@@ -33,13 +30,15 @@ class App(Tk):
 
         self.title('AnieZilla')
         self.resizable(0, 0)
+        self.geometry('{}x{}'.format(222, 408))
+        x = int((self.winfo_screenwidth() / 2) - (222 / 2))
+        y = int((self.winfo_screenheight() / 3) - (408 / 2))
+        self.geometry('+{}+{}'.format(x, y))
 
         if DEBUG:
             self.iconbitmap(resource_path(r'assets\AnieZillaIcon.ico'))
         else:
             self.iconbitmap(resource_path(r'AnieZillaIcon.ico'))
-
-        self.protocol('WM_DELETE_WINDOW', self.quitButton)
 
         self.container = Frame(self)
         self.container.pack(side = 'top', fill = 'both', expand = True)
@@ -78,15 +77,11 @@ class App(Tk):
             self.frames[F] = frame
             frame.grid(row = 0, column = 0, sticky = 'nsew')
 
-        self.loadPages(loginPage, self.container, 222, 408)
+        self.show_frame(loginPage)
 
     def show_frame(self, context):
 
         frame = self.frames[context]
-
-        if frame.name == 'AnieZilla - Search':
-            self.frames[context].fillAnimeList()
-
         frame.tkraise()
 
     def changeTitle(self, title):
@@ -99,90 +94,88 @@ class App(Tk):
         x = int(self.winfo_screenwidth() / 2 - width / 2)
         y = int(self.winfo_screenheight() / 3 - height / 2)
         self.geometry('+{}+{}'.format(x, y))
-        self.minsize(width, height)
 
         self.show_frame(page)
 
+    def quitButtonUpload(self):
+
+        if messagebox.askokcancel('AnieZilla', 'Existem uploads em andamento, tem certeza que deseja fechar o programa?') == True:
+            self.quit()
+
     def quitButton(self):
 
-        if messagebox.askokcancel('AnieZilla', 'Quer realmente sair?') == True:
-            self.quit()
+        self.quit()
 
 class loginPage(Frame):
 
-    userId = 0
-    userVerify = ''
-    passwordVerify = ''
-    users = db.getUser()
-
     def __init__(self, parent, controller):
-
         Frame.__init__(self, parent)
-        self.controller = controller
 
-        self.name = 'AnieZilla - Login'
         self.login = None
         self.label = None
         self.parent = parent
-
-        loginPage.userVerify = StringVar()
-        loginPage.passwordVerify = StringVar()
+        self.loggedUser = None
+        self.user = StringVar()
+        self.password = StringVar()
+        self.controller = controller
+        self.name = 'AnieZilla - Login'
 
         if DEBUG:
             img = PhotoImage(file = resource_path(r'assets\AnieLogo.png'))
         else:
             img = PhotoImage(file = resource_path(r'AnieLogo.png'))
 
-        imageLabel = Label(self, image = img)
-        imageLabel.image = img
-        imageLabel.pack(pady = 5)
+        self.imageLabel = Label(self, image = img)
+        self.imageLabel.image = img
+        self.imageLabel.pack(pady = 5)
 
         Label(self, text = 'User', font = ('Calibri', 11, 'bold')).pack(pady = 2)
-        self.userEntry = ttk.Entry(self, textvariable = loginPage.userVerify, width = 25)
+        self.userEntry = ttk.Entry(self, textvariable = self.user, width = 25)
         self.userEntry.bind('<Return>', self.returnEvent)
         self.userEntry.pack(pady = 2, padx = 10)
         self.userEntry.focus()
 
         Label(self, text = 'Password', font = ('Calibri', 11, 'bold',)).pack(pady = 2)
-        self.passwordEntry = ttk.Entry(self, textvariable = loginPage.passwordVerify, show = '*', width = 25)
+        self.passwordEntry = ttk.Entry(self, textvariable = self.password, show = '*', width = 25)
         self.passwordEntry.bind('<Return>', self.returnEvent)
         self.passwordEntry.pack(pady = 2)
 
-        loginButton = ttk.Button(self, text = 'Login', width = 10, command = self.verifyLogin)
-        loginButton.bind('<Return>', self.returnEvent)
-        loginButton.pack(pady = 5)
+        self.loginButton = ttk.Button(self, text = 'Login', width = 10, command = self.verifyLogin)
+        self.loginButton.bind('<Return>', self.returnEvent)
+        self.loginButton.pack(pady = 5)
 
     def returnEvent(self, e):
 
         self.verifyLogin()
 
+    def userAuth(self):
+        """ Does the auth for user and password. """
+
+        try:
+            self.loggedUser = db.getUser(self.user.get())
+            if self.loggedUser:
+                if self.passwordAuth(self.password.get(), self.loggedUser['senha']) and self.loggedUser['up'] == 1:
+                    return True
+
+            return False
+
+        except Exception as error:
+            messagebox.showerror('AnieZilla', error)
+
     def verifyLogin(self):
         """ Handles the login doing the auth for the user. """
 
-        if loginPage.userVerify.get() == '' or loginPage.passwordVerify.get() == '':
+        if self.user.get() == '' or self.password.get() == '':
             messagebox.showwarning('AnieZilla', 'Todos os campos precisam ser preenchidos')
             return
-
         else:
 
-            if self.isUser(loginPage.users) == True and self.isPassword(loginPage.passwordVerify.get(), self.login[2]) == True:
+            if self.userAuth():
                 self.controller.loadPages(searchPage, self.controller.container, 376, 361)
             else:
                 self.showLabelInvalidLogin()
-                return
-
-    def isUser(self, users):
-        """ Verifies if the user entered is valid. """
-   
-        for user in users:
-            if loginPage.userVerify.get() == user[1]:
-                self.login = user
-                loginPage.userId = user[0]
-                return True
-
-        return False        
-
-    def isPassword(self, password, hash):
+     
+    def passwordAuth(self, password, hash):
         """ Verifies if the password entered is valid. """
 
         if bcrypt.hashpw(password.encode('utf8'), hash.encode('utf8')) == hash.encode('utf8'):
@@ -195,7 +188,7 @@ class loginPage(Frame):
         if self.label != None:
             self.label.destroy()
 
-        self.label = Label(self, text = 'Login inválido', fg = 'red', font = ('Calibri', 10, 'italic'))
+        self.label = Label(self, INVALID_LOGIN_LABEL_ARGS)
         self.label.pack()
 
 class searchPage(Frame):
@@ -206,12 +199,11 @@ class searchPage(Frame):
     def __init__(self, parent, controller):
         Frame.__init__(self, parent)
 
-        self.name = 'AnieZilla - Search'
-        self.controller = controller
-
         self.parent = parent
+        self.controller = controller
+        self.name = 'AnieZilla - Search'
 
-        self.label = ttk.Label(self, text = 'Sua lista de animes', font = ('Calibri', 12, 'italic'))
+        self.label = ttk.Label(self, text = 'Lista de obras', font = ('Calibri', 12, 'italic'))
         self.label.pack(pady = 2)
 
         self.masterFrame = ttk.Frame(self)
@@ -220,34 +212,38 @@ class searchPage(Frame):
         self.scrollBar = ttk.Scrollbar(self.masterFrame)
         self.scrollBar.pack(side = RIGHT, fill = Y)
 
-        self.animeListBox = Listbox(self.masterFrame, height = 13, width = 45, bd = 0)
+        self.animeListBox = Listbox(self.masterFrame, height = 16, width = 45)
         self.animeListBox.pack()
 
         self.scrollBar.config(command = self.animeListBox.yview)
+        self.animeListBox.config(SHOW_LIST_BOX_ARGS)
         self.animeListBox.config(yscrollcommand = self.scrollBar.set)
         self.animeListBox.bind('<<ListboxSelect>>', self.selectItem)
-
-        self.animeSearch = StringVar()
+        self.animeListBox.bind('<Double-Button-1>', self.selecButtonControl)
 
         self.buttonFrame = Frame(self)
         self.buttonFrame.pack()
 
-        self.buttonSelect = ttk.Button(self.buttonFrame, text = 'Selecionar', width = 20, command = lambda: self.selecButtonControl(lambda: controller.show_frame(directoryPage)))
+        self.buttonSelect = ttk.Button(self.buttonFrame, text = 'Selecionar', width = 20)
+        self.buttonSelect.bind('<Button-1>', self.selecButtonControl)
         self.buttonSelect.pack()
+
+        self.fillAnimeList()
         
     def selecButtonControl(self, event):
+
+        self.selectItem(event)
         if  searchPage.selectedItem == '':
-            messagebox.showerror("Am I a joke to you?", 'Selecione algum anime na lista.')
+            messagebox.showerror("Am I a joke to you?", 'Selecione alguma obra na lista.')
             return
 
         self.controller.changeTitle(searchPage.selectedItem)
-        event()
+        self.controller.show_frame(directoryPage)
 
     def fillAnimeList(self):
         """ Fills the Listbox of shows available for episode upload. """
         
-        animes = db.getAnimeList(loginPage.userId)
-
+        animes = db.getAnimeList()
         self.animeListBox.delete(0, END)
 
         if not animes:
@@ -276,22 +272,23 @@ class directoryPage(Frame):
     def __init__(self, parent, controller):
         Frame.__init__(self, parent)
         
-        self.name = 'AnieZilla - Directory'
-        self.parent = parent
-        self.controller = controller
         self.path = ''
         self.fileList = []
         self.thumbFiles = []
+        self.parent = parent
         self.episodeNumbers = None
+        self.controller = controller
+        self.name = 'AnieZilla - Directory'
 
         self.label = Label(self, text = 'Episódios Selecionados', font = ('Calibri', 12, 'italic'))
         self.label.grid(row = 0, column = 5, columnspan = 6)
      
         self.masterFrame = ttk.Frame(self)
-        self.fileListBox = Listbox(self.masterFrame, height = 13, width = 45, bd = 0)
+        self.fileListBox = Listbox(self.masterFrame, height = 16, width = 45)
         self.verticalScrollBar = Scrollbar(self.masterFrame, orient = 'vertical', command = self.fileListBox.yview)
-        self.fileListBox.configure(yscrollcommand = self.verticalScrollBar.set)
-
+        self.fileListBox.config(yscrollcommand = self.verticalScrollBar.set)
+        self.fileListBox.config(FILE_LIST_BOX_ARGS)
+    
         self.masterFrame.grid(row = 1, column = 5, columnspan = 6, rowspan = 3)
         self.fileListBox.grid(row = 0, column = 0, sticky = 'nesw')
         self.verticalScrollBar.grid(row = 0, column = 1, sticky = 'ns')
@@ -346,8 +343,8 @@ class directoryPage(Frame):
                 messagebox.showerror('AnieZilla', 'Selecione um episódio no mesmo diretório dos demais.')
                 return
 
-            name = self.getSingleFileName(fileName, '/')
-            if not re.search(r'\bepisodio-\d+[.]mp4\b', name):
+            name = self.getSingleFileName(fileName)
+            if not re.search(EPISODE_REGEX, name):
                 messagebox.showerror('AnieZilla', 'O nome do episódio selecionado não está no padrão.')
                 return
 
@@ -378,9 +375,9 @@ class directoryPage(Frame):
                 messagebox.showerror('AnieZilla', 'A pasta img com as thumbs não existe no diretório dos episódios.')
                 return
 
-    def getSingleFileName(self, fileName, pattern):
+    def getSingleFileName(self, fileName):
 
-        return re.split(pattern, fileName)[-1]
+        return re.split("(\\\\|/)", fileName)[-1]
         
     def getSingleFileNumber(self, fileName, f):
 
@@ -393,7 +390,7 @@ class directoryPage(Frame):
             self.episodeNumbers.remove(int(''.join(re.findall(r'\d+', self.fileList[idx][:-1]))))
             self.fileList.pop(idx)
             self.thumbFiles.pop(idx)
-            self.fillFileList(self.fileList)
+            self.fileListBox.delete(ACTIVE)
         except IndexError:
             pass
 
@@ -449,6 +446,7 @@ class directoryPage(Frame):
         if fileNames:
 
             self.clearLists()
+            self.fileListBox.delete(0, END)
             self.path = '\\'.join(re.split('/', fileNames[0])[:-1]) + os.sep
 
             self.fileList = [re.split('/', name)[-1] for name in fileNames]
@@ -460,8 +458,7 @@ class directoryPage(Frame):
             if os.path.exists(self.path + 'img'):
 
                 self.episodeNumbers = self.getFileNumber(self.fileList)
-                self.thumbFiles = [re.split('\\\\', name)[-1] for name in glob.glob(self.path + 'img\*.png')]
-                self.thumbFiles = [name for name in self.thumbFiles if re.search(r'\bthumb-\d+[.]png\b', name)]
+                self.thumbFiles = [name for name in self.fileNameIterator(glob.glob(self.path + 'img\*.png')) if re.search(THUMB_REGEX, name)]
 
                 thumbNumbers = self.getFileNumber(self.thumbFiles)
 
@@ -471,11 +468,18 @@ class directoryPage(Frame):
                     return
         
                 self.thumbFiles = [name for name in self.thumbFiles if {int(re.findall(r'\d+', name)[0])} & self.episodeNumbers]
+                print(self.thumbFiles)
 
                 self.fillFileList(self.fileList)
             
             else:
                 messagebox.showerror('AnieZilla', 'É preciso existir uma pasta img com os arquivos de thumb no diretório dos episódios.')
+
+    def fileNameIterator(self, fileList):
+        """ Stream of names in fileList. """
+
+        for name in fileList:
+            yield re.split("(\\\\|/)", name)[-1]
 
     def clearLists(self):
         self.fileList = []
@@ -484,7 +488,7 @@ class directoryPage(Frame):
     def episodeNameVerify(self):
         """ Method verifies if all the file names are in the pattern. """
 
-        return all([re.search(r'\bepisodio-\d+[.]mp4\b', i) for i in self.fileList])
+        return all([re.search(EPISODE_REGEX, i) for i in self.fileList])
 
     def fillFileList(self, lst):
         """ Method fills the Listbox with the selected files. """
@@ -501,28 +505,29 @@ class uploadPage(Frame):
     
     def __init__(self, parent, controller, name = 'AnieZilla - Upload'):
         Frame.__init__(self, parent)
-
+        
         self.ftp = None
         self.path = ''
         self.name = name
         self.flag = False
         self.parent = parent
         self.tracker = None
-        self.controller = controller
         self.fileList = []
         self.thumbList = []
         self.listBoxNames = []
         self.episodeNumbers = set()
         self.configFile = None
+        self.controller = controller
         self.cfgSelectedEntries = None
 
         self.label = Label(self, text = 'Fila de Uploads', font = ('Calibri', 12, 'italic'))
         self.label.grid(row = 0, column = 5, columnspan = 6)
 
         self.masterFrame = ttk.Frame(self)
-        self.uploadListBox = Listbox(self.masterFrame, height = 13, width = 45, bd = 0)
+        self.uploadListBox = Listbox(self.masterFrame, height = 16, width = 45)
         self.verticalScrollBar = Scrollbar(self.masterFrame, orient = 'vertical', command = self.uploadListBox.yview)
-        self.uploadListBox.configure(yscrollcommand = self.verticalScrollBar.set)
+        self.uploadListBox.config(yscrollcommand = self.verticalScrollBar.set)
+        self.uploadListBox.config(UPLOAD_LIST_BOX_ARGS)
 
         self.masterFrame.grid(row = 1, column = 5, columnspan = 6, rowspan = 3)
         self.uploadListBox.grid(row = 0, column = 0, sticky = 'nesw')
@@ -596,26 +601,31 @@ class uploadPage(Frame):
 
     def UnlockButtons(self):
         """ Handles a command of the locker button when it's closed. """
-
-        self.buttonLock['image'] = self.imgLockerOpen
-        self.stopUploadButton['state'] = 'able'
-        self.pauseUploadButton['state'] = 'able'
-        self.plusButton['state'] = 'able'
-        self.minusButton['state'] = 'able'
+        
         self.upButton['state'] = 'able'
         self.downButton['state'] = 'able'
+        self.plusButton['state'] = 'able'
+        self.minusButton['state'] = 'able'
+        self.buttonLock['image'] = self.imgLockerOpen
         self.buttonLock['command'] = self.lockButtons
+        
+        if self.ftp.pause == False and self.ftp.stop == False:
+            self.stopUploadButton['state'] = 'able'
+
+        if self.ftp.pause:
+            if not self.overUpload():
+                self.pauseUploadButton['state'] = 'able'
 
     def lockButtons(self):
         """ Handles a coomand of the locker button when it's open. """
 
-        self.buttonLock['image'] = self.imgLockerClosed
-        self.stopUploadButton['state'] = 'disabled'
-        self.pauseUploadButton['state'] = 'disabled'
+        self.upButton['state'] = 'disabled'
         self.plusButton['state'] = 'disabled'
         self.minusButton['state'] = 'disabled'
-        self.upButton['state'] = 'disabled'
         self.downButton['state'] = 'disabled'
+        self.stopUploadButton['state'] = 'disabled'
+        self.pauseUploadButton['state'] = 'disabled'
+        self.buttonLock['image'] = self.imgLockerClosed
         self.buttonLock['command'] = self.UnlockButtons
 
     def startThread(self):
@@ -629,6 +639,7 @@ class uploadPage(Frame):
 
         self.backButton['state'] = 'disabled'
         self.path = self.controller.frames[directoryPage].path
+        self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButtonUpload)
         self.episodeNumbers = self.controller.frames[directoryPage].episodeNumbers
 
         try:
@@ -666,13 +677,14 @@ class uploadPage(Frame):
                 self.controller.frames[directoryPage].clearListBox()
 
                 return
-
+            
+            userId = self.controller.frames[loginPage].loggedUser['id']
             animeId = searchPage.animeId[searchPage.selectedItem][0]
             animePath = searchPage.animeId[searchPage.selectedItem][1] + '/'
           
             number = int(re.findall(r'\d+', video)[0])
             episodeJson = self.cfgSelectedEntries[number]
-            episode = Episode(loginPage.userId, animeId, animePath, video, episodeJson)
+            episode = Episode(userId, animeId, animePath, video, episodeJson)
 
             try:
                 
@@ -719,7 +731,7 @@ class uploadPage(Frame):
 
             try:
                 
-                self.ftp = ftpUploadModule('ftp.anieclipse.tk', 'anieclipse3', 'StarBugs#029')
+                self.ftp = ftpUploadModule(FTP_SERVER, FTP_USER, FTP_PASSWORD)
 
                 self.tracker = progressBar(self.progressBarFrame, self.controller, maxbytes, self.ftp)
                 self.controller.percentageLabel['text'] = '0% - 0 Kbps'
@@ -770,6 +782,7 @@ class uploadPage(Frame):
                         break
                     else:
                         name[1] = FINISHED
+                        self.controller.footLabel['text'] = '00:00:00'
 
                 if self.ftp.stop:
                     name[1] = STOPED
@@ -815,11 +828,12 @@ class uploadPage(Frame):
 
         if not self.ftp.stop:
             messagebox.showinfo('AnieZilla', 'Todos os uploads terminaram!')
-        
+
         self.updateListBoxUpload(idx)
         self.backButton['state'] = 'normal'
         self.stopUploadButton['state'] = 'disabled'
         self.pauseUploadButton['state'] = 'disabled'
+        self.controller.protocol('WM_DELETE_WINDOW', self.quitButton)
         self.controller.frames[directoryPage].clearListBox()
 
     def eraseUploadedLine(self, cfgFile, entry):
@@ -950,7 +964,7 @@ class uploadPage(Frame):
                 return
 
             name = self.controller.frames[directoryPage].getSingleFileName(fileName, '/')
-            if not re.search(r'\bepisodio-\d+[.]mp4\b', name):
+            if not re.search(EPISODE_REGEX, name):
                 messagebox.showerror('AnieZilla', 'O nome do arquivo selecionado não está no padrão.')
                 return
             
