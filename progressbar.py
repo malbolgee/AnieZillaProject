@@ -41,7 +41,7 @@ class progressBar(Frame):
             kbytespersec = (self.NewSizeWritten / 1024) / (end_time - self.start_time).total_seconds()
             eta = self.getETA(self.maxbytes - self.sizeWrittenRest, kbytespersec)
 
-        self.controller.footLabel['text'] = '{}'.format(eta)
+        self.controller.etaLabel['text'] = '{}'.format(eta)
         percenteComplete = round((self.sizeWrittenRest / self.maxbytes) * 100)
         self.controller.percentageLabel['text'] = '{}% - {:.0f} Kbps'.format(percenteComplete, kbytespersec)
         self.progress['value'] = percenteComplete
