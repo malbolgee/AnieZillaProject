@@ -5,7 +5,7 @@ from tkinter import messagebox
 
 class Database(object):
 
-    def getAnimeList(self, userId):
+    def getAnimeList(self):
         """ Returns a list of animes that are not completed yet. """
         
         self.conn = pymysql.connect(SERVER, USER, PASSWORD, DBNAME, charset = 'utf8mb4')
@@ -18,18 +18,18 @@ class Database(object):
 
         return rows
 
-    def getUser(self):
+    def getUser(self, nickname):
         """ Returns a list of the users in the site. """
 
-        self.conn = pymysql.connect(SERVER, USER, PASSWORD, DBNAME, charset = 'utf8mb4')
+        self.conn = pymysql.connect(SERVER, USER, PASSWORD, DBNAME, charset = 'utf8mb4', cursorclass = pymysql.cursors.DictCursor)
         self.cur = self.conn.cursor()
 
-        self.cur.execute(USER_LIST_QUERY)
-        rows = self.cur.fetchall()
+        self.cur.execute(USER_LIST_QUERY, nickname)
+        user = self.cur.fetchone()
 
         self.conn.close()
 
-        return rows
+        return user
 
     def insertEpisode(self, episode):
         """ Does a insert query in the database using transaction. """
