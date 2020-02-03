@@ -60,8 +60,8 @@ class App(Tk):
         self.centerFootFrame = Frame(self.footFrame,bg = 'red')
         self.centerFootFrame.pack()
 
-        self.footLabel = Label(self.leftFootFrame, text = '', font = ('Calibri', 7))
-        self.footLabel.pack(side = 'left')
+        self.etaLabel = Label(self.leftFootFrame, text = '', font = ('Calibri', 7))
+        self.etaLabel.pack(side = 'left')
 
         self.percentageLabel = Label(self.rightFootFrame, text = '', font = ('Calibri', 8, 'italic'))
         self.percentageLabel.pack(side = 'right')
@@ -613,7 +613,7 @@ class uploadPage(Frame):
         self.controller.episodeName['text'] = ''
 
     def UnlockButtons(self):
-        """ Handles a command of the locker button when it's closed. """
+        """ Handles the padlock button event. """
         
         self.upButton['state'] = 'able'
         self.downButton['state'] = 'able'
@@ -621,16 +621,19 @@ class uploadPage(Frame):
         self.minusButton['state'] = 'able'
         self.buttonLock['image'] = self.imgLockerOpen
         self.buttonLock['command'] = self.lockButtons
-        
-        if self.ftp.pause == False and self.ftp.stop == False:
-            self.stopUploadButton['state'] = 'able'
+
+        if self.overUpload() or self.ftp.stop:
+            return
 
         if self.ftp.pause:
-            if not self.overUpload():
-                self.pauseUploadButton['state'] = 'able'
+            self.pauseUploadButton['state'] = 'able'
+            return
+
+        self.pauseUploadButton['state'] = 'able'
+        self.stopUploadButton['state'] = 'able'
 
     def lockButtons(self):
-        """ Handles a coomand of the locker button when it's open. """
+        """ Handles the padlock button event. """
 
         self.upButton['state'] = 'disabled'
         self.plusButton['state'] = 'disabled'
@@ -650,19 +653,15 @@ class uploadPage(Frame):
 
     def f(self):
         
-        self.stopUploadButton['state'] = 'able'
-        self.pauseUploadButton['state'] = 'able'
-        self.backButton['state'] = 'disabled'
+        self.beforeUploadConfig()
         self.path = self.controller.frames[directoryPage].path
-        self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButtonUpload)
-        self.episodeNumbers = self.controller.frames[directoryPage].episodeNumbers
 
         try:
 
             self.configFile = open(self.path + 'config.cfg', 'r+', encoding = 'utf-8')        
 
         except FileNotFoundError:
-            messagebox.showerror('AnieZilla', 'Arquivo config.cfg não encontrado.')
+            messagebox.showerror('AnieZilla', 'Arquivo \'config.cfg\' não encontrado.')
             self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButton)
             self.backButton['state'] = 'normal'
             return
@@ -706,13 +705,13 @@ class uploadPage(Frame):
             try:
                 
                 if db.isComplete(episode) == True:
-                    messagebox.showerror('AnieZilla', 'A obra na para a qual você está tentando upar o episódio já está completa!')
+
                     thumbFile.close()
                     videoFile.close()
-
                     self.configFile.close()
                     self.backButton['state'] = 'normal'
                     self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButton)
+                    messagebox.showerror('AnieZilla', 'A obra para a qual você está tentando upar o episódio já está completa!')
 
                     return
 
@@ -801,7 +800,6 @@ class uploadPage(Frame):
                         break
                     else:
                         name[1] = FINISHED
-                        self.controller.footLabel['text'] = '00:00:00'
 
                 if self.ftp.stop:
                     name[1] = STOPED
@@ -850,8 +848,22 @@ class uploadPage(Frame):
             messagebox.showinfo('AnieZilla', 'Todos os uploads terminaram!')
 
         self.updateListBoxUpload(idx)
+        self.afterUploadConfig()
+    
+    def beforeUploadConfig(self):
+
+        self.backButton['state'] = 'disabled'
+        self.stopUploadButton['state'] = 'able'
+        self.pauseUploadButton['state'] = 'able'
+        self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButtonUpload)
+        self.episodeNumbers = self.controller.frames[directoryPage].episodeNumbers
+
+    def afterUploadConfig(self):
+
         self.backButton['state'] = 'normal'
+        self.controller.etaLabel['text'] = ''
         self.stopUploadButton['state'] = 'disabled'
+        self.controller.percentageLabel['text'] = ''
         self.pauseUploadButton['state'] = 'disabled'
         self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButton)
         self.controller.frames[directoryPage].clearListBox()
@@ -878,16 +890,14 @@ class uploadPage(Frame):
         i = 0
         for _ in cfgFile:
             i += 1
-
-        if i == 0:
-            i = 0
-        elif i < len(self.fileList):
-            i = 1
-       
+        
         cfgFile.seek(0)
 
-        return i
-
+        if i == 0:
+            return EMPTY_CFG
+        elif i < len(self.fileList):
+            return LESS_CFG
+       
     def cancelUpload(self):
         """ Handles the stop upload buttonCommand """
         
@@ -916,7 +926,7 @@ class uploadPage(Frame):
         """ Method updates the Listbox with progress on the episodes uploads. """
 
         name = self.listBoxNames[idx]
-        self.uploadListBox.delete(idx, idx)
+        self.uploadListBox.delete(idx)
         
         try:
             self.uploadListBox.insert(idx, str(name[2]) + ': ' + name[0] + UPDATE_UPLOAD_LIST_STRING[name[1]])
