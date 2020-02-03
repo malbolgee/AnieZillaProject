@@ -220,6 +220,7 @@ class searchPage(Frame):
         self.animeListBox.config(yscrollcommand = self.scrollBar.set)
         self.animeListBox.bind('<<ListboxSelect>>', self.selectItem)
         self.animeListBox.bind('<Double-Button-1>', self.selecButtonControl)
+        self.animeListBox.bind('<Escape>', self.animeListBoxEscapeEvent)
 
         self.buttonFrame = Frame(self)
         self.buttonFrame.pack()
@@ -229,6 +230,11 @@ class searchPage(Frame):
         self.buttonSelect.pack()
 
         self.fillAnimeList()
+
+    def animeListBoxEscapeEvent(self, event):
+        
+        searchPage.selectedItem = ''
+        self.animeListBox.selection_clear(ACTIVE)
         
     def selecButtonControl(self, event):
 
@@ -259,14 +265,8 @@ class searchPage(Frame):
     def selectItem(self, event):
         """ Returns the selected item in the listbox of show's """
 
-        try:
+        searchPage.selectedItem = self.animeListBox.get(ACTIVE)
 
-            index = self.animeListBox.curselection()[0]
-            searchPage.selectedItem = self.animeListBox.get(index)
-
-        except IndexError:
-            pass
-   
 class directoryPage(Frame):
 
     def __init__(self, parent, controller):
@@ -288,6 +288,7 @@ class directoryPage(Frame):
         self.verticalScrollBar = Scrollbar(self.masterFrame, orient = 'vertical', command = self.fileListBox.yview)
         self.fileListBox.config(yscrollcommand = self.verticalScrollBar.set)
         self.fileListBox.config(FILE_LIST_BOX_ARGS)
+        self.fileListBox.bind('<Escape>', self.fileListBoxEscapeEvent)
     
         self.masterFrame.grid(row = 1, column = 5, columnspan = 6, rowspan = 3)
         self.fileListBox.grid(row = 0, column = 0, sticky = 'nesw')
@@ -322,9 +323,18 @@ class directoryPage(Frame):
         self.minusButton.image = self.imgMinusButton
         self.minusButton.grid(row = 1, column = 0, pady = 1)
 
-        self.backButton = ttk.Button(self, image = self.imgBackButton, command = lambda: controller.show_frame(searchPage))
+        self.backButton = ttk.Button(self, image = self.imgBackButton, command = self.backButtonCommand)
         self.backButton.image = self.imgBackButton
         self.backButton.grid(row = 0, column = 0)
+
+    def backButtonCommand(self):
+
+        self.controller.frames[searchPage].animeListBox.focus_force()
+        self.controller.show_frame(searchPage)
+
+    def fileListBoxEscapeEvent(self, event):
+
+        self.fileListBox.selection_clear(ACTIVE)
 
     def plusButtonCommand(self):
         """ Handles the plus button command event. """
@@ -445,8 +455,7 @@ class directoryPage(Frame):
 
         if fileNames:
 
-            self.clearLists()
-            self.fileListBox.delete(0, END)
+            self.clearListBox()
             self.path = '\\'.join(re.split('/', fileNames[0])[:-1]) + os.sep
 
             self.fileList = [re.split('/', name)[-1] for name in fileNames]
@@ -468,7 +477,6 @@ class directoryPage(Frame):
                     return
         
                 self.thumbFiles = [name for name in self.thumbFiles if {int(re.findall(r'\d+', name)[0])} & self.episodeNumbers]
-                print(self.thumbFiles)
 
                 self.fillFileList(self.fileList)
             
@@ -528,6 +536,7 @@ class uploadPage(Frame):
         self.verticalScrollBar = Scrollbar(self.masterFrame, orient = 'vertical', command = self.uploadListBox.yview)
         self.uploadListBox.config(yscrollcommand = self.verticalScrollBar.set)
         self.uploadListBox.config(UPLOAD_LIST_BOX_ARGS)
+        self.uploadListBox.bind('<Escape>', self.uploadListBoxEscapeEvent)
 
         self.masterFrame.grid(row = 1, column = 5, columnspan = 6, rowspan = 3)
         self.uploadListBox.grid(row = 0, column = 0, sticky = 'nesw')
@@ -591,6 +600,10 @@ class uploadPage(Frame):
         self.buttonLock = Button(controller.lockerFrame, image = self.imgLockerOpen, bd = 0, command = self.lockButtons)
         self.buttonLock.image = self.imgLockerOpen
 
+    def uploadListBoxEscapeEvent(self, event):
+
+        self.uploadListBox.selection_clear(ACTIVE)
+
     def backButtonCommand(self):
         """ Handles the back button command event. """
         
@@ -636,7 +649,9 @@ class uploadPage(Frame):
         t1.start()
 
     def f(self):
-
+        
+        self.stopUploadButton['state'] = 'able'
+        self.pauseUploadButton['state'] = 'able'
         self.backButton['state'] = 'disabled'
         self.path = self.controller.frames[directoryPage].path
         self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButtonUpload)
@@ -648,6 +663,7 @@ class uploadPage(Frame):
 
         except FileNotFoundError:
             messagebox.showerror('AnieZilla', 'Arquivo config.cfg não encontrado.')
+            self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButton)
             self.backButton['state'] = 'normal'
             return
 
@@ -675,6 +691,7 @@ class uploadPage(Frame):
 
                 self.backButton['state'] = 'normal'
                 self.controller.frames[directoryPage].clearListBox()
+                self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButton)
 
                 return
             
@@ -689,12 +706,13 @@ class uploadPage(Frame):
             try:
                 
                 if db.isComplete(episode) == True:
-                    messagebox.showwarning('AnieZilla', 'A obra na para a qual você está tentando upar o episódio já está completa!')
+                    messagebox.showerror('AnieZilla', 'A obra na para a qual você está tentando upar o episódio já está completa!')
                     thumbFile.close()
                     videoFile.close()
 
                     self.configFile.close()
                     self.backButton['state'] = 'normal'
+                    self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButton)
 
                     return
 
@@ -703,6 +721,7 @@ class uploadPage(Frame):
 
                 self.backButton['state'] = 'normal'
                 self.controller.frames[directoryPage].clearListBox()
+                self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButton)
 
                 return
 
@@ -733,8 +752,8 @@ class uploadPage(Frame):
                 
                 self.ftp = ftpUploadModule(FTP_SERVER, FTP_USER, FTP_PASSWORD)
 
-                self.tracker = progressBar(self.progressBarFrame, self.controller, maxbytes, self.ftp)
                 self.controller.percentageLabel['text'] = '0% - 0 Kbps'
+                self.tracker = progressBar(self.progressBarFrame, self.controller, maxbytes, self.ftp)
                 self.controller.episodeName['text'] = name[0][:30] + '...' if len(name[0]) > 30 else name[0]
 
                 videoPath = '/public_html/' + animePath + video
@@ -805,6 +824,7 @@ class uploadPage(Frame):
                 self.backButton['state'] = 'normal'
                 self.updateListBoxUpload(idx)
                 self.controller.frames[directoryPage].clearListBox()
+                self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButton)
 
                 return
 
@@ -833,7 +853,7 @@ class uploadPage(Frame):
         self.backButton['state'] = 'normal'
         self.stopUploadButton['state'] = 'disabled'
         self.pauseUploadButton['state'] = 'disabled'
-        self.controller.protocol('WM_DELETE_WINDOW', self.quitButton)
+        self.controller.protocol('WM_DELETE_WINDOW', self.controller.quitButton)
         self.controller.frames[directoryPage].clearListBox()
 
     def eraseUploadedLine(self, cfgFile, entry):
