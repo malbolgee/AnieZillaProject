@@ -19,4 +19,4 @@ class Episode(object):
 
     def __repr__(self):
         
-        return "userid: {}\n animeId: {}\n animePath: {}\n fileName: {}\n".format(self.userId, self.animeId, self.animePath, self.fileName)
+        return "userid: {}\nanimeId: {}\nanimePath: {}\nfileName: {}\n".format(self.userId, self.animeId, self.animePath, self.fileName)
