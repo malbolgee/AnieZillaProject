@@ -113,7 +113,6 @@ class loginPage(Frame):
 
         self.login = None
         self.label = None
-        self.parent = parent
         self.loggedUser = None
         self.user = StringVar()
         self.password = StringVar()
@@ -199,7 +198,6 @@ class searchPage(Frame):
     def __init__(self, parent, controller):
         Frame.__init__(self, parent)
 
-        self.parent = parent
         self.controller = controller
         self.name = 'AnieZilla - Search'
 
@@ -275,7 +273,6 @@ class directoryPage(Frame):
         self.path = ''
         self.fileList = []
         self.thumbFiles = []
-        self.parent = parent
         self.episodeNumbers = None
         self.controller = controller
         self.name = 'AnieZilla - Directory'
@@ -419,7 +416,7 @@ class directoryPage(Frame):
         try:
 
             cfg = open(self.path + 'config.cfg', 'r', encoding = 'utf-8')
-
+            
             self.controller.frames[uploadPage].fillFileList()
             result = self.controller.frames[uploadPage].cfgLineCount(cfg)
 
@@ -427,7 +424,7 @@ class directoryPage(Frame):
                 messagebox.showerror('AnieZilla', 'Há mais arquivos selecionados do que informações disponíveis.')
                 return
             if not self.episodeNumberVerify(cfg):
-                messagebox.showerror('AnieZilla', 'Um ou mais episódios não têm informações no .cfg')
+                messagebox.showerror('AnieZilla', 'Um ou mais episódios não tem informações no .cfg')
                 return
 
         except FileNotFoundError as fnf:
@@ -435,7 +432,7 @@ class directoryPage(Frame):
             return
 
         finally:
-                cfg.close()
+            cfg.close()
 
         self.controller.frames[uploadPage].buttonLock.pack(anchor = 'e')
         self.controller.show_frame(uploadPage)
@@ -459,7 +456,7 @@ class directoryPage(Frame):
             self.path = '\\'.join(re.split('/', fileNames[0])[:-1]) + os.sep
 
             self.fileList = [re.split('/', name)[-1] for name in fileNames]
-            if not self.episodeNameVerify():
+            if not self.episodeNameVerify:
                 self.clearLists()
                 messagebox.showerror('AnieZilla', 'Um ou mais episódios estão com o nome incorreto.')
                 return
@@ -473,7 +470,7 @@ class directoryPage(Frame):
 
                 if not len(thumbNumbers & self.episodeNumbers) == len(self.fileList):
                     self.clearLists()
-                    messagebox.showerror('AnieZilla', 'Um ou mais episódios não têm thumbs.')
+                    messagebox.showerror('AnieZilla', 'Um ou mais episódios não tem thumb.')
                     return
         
                 self.thumbFiles = [name for name in self.thumbFiles if {int(re.findall(r'\d+', name)[0])} & self.episodeNumbers]
@@ -493,6 +490,7 @@ class directoryPage(Frame):
         self.fileList = []
         self.thumbFiles = []
 
+    @property
     def episodeNameVerify(self):
         """ Method verifies if all the file names are in the pattern. """
 
@@ -517,8 +515,6 @@ class uploadPage(Frame):
         self.ftp = None
         self.path = ''
         self.name = name
-        self.flag = False
-        self.parent = parent
         self.tracker = None
         self.fileList = []
         self.thumbList = []
@@ -622,7 +618,7 @@ class uploadPage(Frame):
         self.buttonLock['image'] = self.imgLockerOpen
         self.buttonLock['command'] = self.lockButtons
 
-        if self.overUpload() or self.ftp.stop:
+        if self.overUpload or self.ftp.stop:
             return
 
         if self.ftp.pause:
@@ -683,8 +679,8 @@ class uploadPage(Frame):
                 videoFile = open(self.path + video, 'rb')
                 thumbFile = open(self.path + 'img\\' + thumb, 'rb')
 
-            except FileNotFoundError as fnf:
-                messagebox.showerror('AnieZilla', fnf)
+            except FileNotFoundError as error:
+                messagebox.showerror('AnieZilla', error)
 
                 self.configFile.close()
 
@@ -715,8 +711,8 @@ class uploadPage(Frame):
 
                     return
 
-            except Exception as exe:
-                messagebox.showerror('AnieZilla', exe)
+            except Exception as error:
+                messagebox.showerror('AnieZilla', error)
 
                 self.backButton['state'] = 'normal'
                 self.controller.frames[directoryPage].clearListBox()
@@ -736,8 +732,8 @@ class uploadPage(Frame):
 
                     continue
 
-            except Exception as exe:
-                messagebox.showerror('AnieZilla', exe)
+            except Exception as error:
+                messagebox.showerror('AnieZilla', error)
 
                 name[1] = ERROR
                 thumbFile.close()
@@ -813,8 +809,8 @@ class uploadPage(Frame):
         
                 self.eraseUploadedLine(self.configFile, episodeJson)
 
-            except Exception as ce:
-                messagebox.showerror('AnieZilla', ce)
+            except Exception as error:
+                messagebox.showerror('AnieZilla', error)
 
                 self.configFile.close()
 
@@ -975,7 +971,7 @@ class uploadPage(Frame):
       
     def plusButtonCommand(self):
 
-        if self.overUpload():
+        if self.overUpload:
             messagebox.showerror('AnieZilla', 'Não é possível adicionar mais nada, todos os uploads já terminaram.')
             return
 
@@ -1049,6 +1045,7 @@ class uploadPage(Frame):
 
         return result
 
+    @property
     def overUpload(self):
 
         return all([True if i[1] == FINISHED else False for i in self.listBoxNames]) 
